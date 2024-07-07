@@ -5,7 +5,7 @@ const nextConfig = {};
 export default withSentryConfig(withSentryConfig(nextConfig, {
 // For all available options, see:
 // https://github.com/getsentry/sentry-webpack-plugin#options
-
+url:'https://svnit-ht.sentry.io/',
 org: "svnit-ht",
 project: "pkp-care",
 
