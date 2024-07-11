@@ -2,7 +2,7 @@
 
 
 <div align="center">
-  ![image](https://github.com/pkp2207/PKPCare/assets/58586336/4b8f9132-909f-4973-a3f3-522fd2b5ac7c)
+  <img src = "https://github.com/pkp2207/PKPCare/assets/58586336/4b8f9132-909f-4973-a3f3-522fd2b5ac7c">
   <h3 align="center">A HealthCare Management System</h3>
 </div>
 
