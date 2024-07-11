@@ -1,5 +1,4 @@
 # PKPCare
-Deployed at https://pkp-care.vercel.app/
 
 <div align="center">
   <h3 align="center">A HealthCare Management System</h3>
