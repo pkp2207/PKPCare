@@ -14,7 +14,7 @@ const Home = ({ searchParams }: SearchParamProps) => {
       <section className="remove-scrollbar container my-auto">
         <div className="sub-container max-w-[496px]">
           <Image
-            src="/assets/icons/logo-full-pkp.png"
+            src="/assets/icons/logo-full.svg"
             height={1000}
             width={1000}
             alt="patient"
