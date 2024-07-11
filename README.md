@@ -2,8 +2,6 @@
 Deployed at https://pkp-care.vercel.app/
 
 <div align="center">
-  <br />
-  <br />
 
   <div>
     <img src="https://img.shields.io/badge/-Next_JS-black?style=for-the-badge&logoColor=white&logo=nextdotjs&color=000000" alt="nextdotjs" />
@@ -74,8 +72,8 @@ Make sure you have the following installed on your machine:
 **Cloning the Repository**
 
 ```bash
-git clone https://github.com/adrianhajdin/healthcare.git
-cd healthcare
+git clone https://github.com/pkp2207/PKPCare.git
+cd PKPCare
 ```
 
 **Installation**
@@ -100,7 +98,7 @@ PATIENT_COLLECTION_ID=
 APPOINTMENT_COLLECTION_ID=
 NEXT_PUBLIC_BUCKET_ID=
 
-NEXT_PUBLIC_ADMIN_PASSKEY=111111
+NEXT_PUBLIC_ADMIN_PASSKEY=123456
 ```
 
 Replace the placeholder values with your actual Appwrite credentials. You can obtain these credentials by signing up on the [Appwrite website](https://appwrite.io/).
