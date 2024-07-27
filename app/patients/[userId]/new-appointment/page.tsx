@@ -11,11 +11,11 @@ const Appointment = async ({ params: { userId } }: SearchParamProps) => {
       <section className="remove-scrollbar container my-auto">
         <div className="sub-container max-w-[860px] flex-1 justify-between">
           <Image
-            src="/assets/icons/logo-full.svg"
-            height={1000}
-            width={1000}
+            src="/assets/icons/logo-full-pkp.png"
+            height={200}
+            width={200}
             alt="logo"
-            className="mb-12 h-10 w-fit"
+            className="mb-12"
           />
 
           <AppointmentForm
@@ -24,7 +24,7 @@ const Appointment = async ({ params: { userId } }: SearchParamProps) => {
             type="create"
           />
 
-          <p className="copyright mt-10 py-12">© 2024 CarePluse</p>
+          <p className="copyright mt-10 py-12">© 2024 PKPCare</p>
         </div>
       </section>
 
