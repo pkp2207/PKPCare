@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -87,6 +88,9 @@ export const PasskeyModal = () => {
             <AlertDialogDescription>
               To access the admin page, please enter the passkey.
             </AlertDialogDescription>
+            <Link href="/login/staff" className="text-14-regular text-green-500">
+              Have a staff account? Sign in with email
+            </Link>
           </AlertDialogHeader>
           <div>
             <InputOTP
