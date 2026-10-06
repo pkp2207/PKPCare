@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          # Dummy, non-secret values: the build must not need real credentials.
+          # SENTRY_AUTH_TOKEN is intentionally unset (next.config.mjs dry-runs).
+          NEXT_PUBLIC_ENDPOINT: https://cloud.appwrite.io/v1
+          NEXT_PUBLIC_BUCKET_ID: ci-dummy-bucket
+          PROJECT_ID: ci-dummy-project
+          API_KEY: ci-dummy-api-key
+          DATABASE_ID: ci-dummy-database
+          PATIENT_COLLECTION_ID: ci-dummy-patients
+          APPOINTMENT_COLLECTION_ID: ci-dummy-appointments
+          ADMIN_PASSKEY: "000000"
+          ADMIN_SESSION_SECRET: ci-dummy-session-secret-not-for-production-use
+          NEXT_TELEMETRY_DISABLED: "1"
