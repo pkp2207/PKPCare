@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { Doctors } from "@/constants";
+
 export const UserFormValidation = z.object({
   name: z
     .string()
@@ -116,3 +118,64 @@ export function getAppointmentSchema(type: string) {
       return ScheduleAppointmentSchema;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Server-side schemas. Client-side form schemas above are UX only; actions must
+// re-validate everything here because server actions are public endpoints.
+// ---------------------------------------------------------------------------
+
+const DoctorNames = Doctors.map((doctor) => doctor.name);
+
+// Appwrite custom id charset: a-z A-Z 0-9 . - _ (max 36, no leading special).
+export const IdSchema = z
+  .string()
+  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,35}$/, "Invalid id");
+
+export const PhysicianSchema = z
+  .string()
+  .refine((name) => DoctorNames.includes(name), "Select a valid doctor");
+
+export const StatusSchema = z.enum(["pending", "scheduled", "cancelled"]);
+
+const OptionalText = (max: number) => z.string().max(max).optional();
+
+export const CreateUserServerSchema = UserFormValidation;
+
+/** Server schema for RegisterUserParams minus the file (validated separately). */
+export const RegisterPatientServerSchema = PatientFormValidation.omit({
+  identificationDocument: true,
+})
+  .extend({
+    userId: IdSchema,
+    birthDate: z.coerce
+      .date()
+      .refine((date) => date.getTime() <= Date.now(), "Invalid birth date"),
+    primaryPhysician: PhysicianSchema,
+    allergies: OptionalText(2000),
+    currentMedication: OptionalText(2000),
+    familyMedicalHistory: OptionalText(2000),
+    pastMedicalHistory: OptionalText(2000),
+    identificationType: OptionalText(100),
+    identificationNumber: OptionalText(100),
+  });
+
+export const CreateAppointmentServerSchema = CreateAppointmentSchema.pick({
+  reason: true,
+  note: true,
+  schedule: true,
+})
+  .extend({
+    userId: IdSchema,
+    patient: IdSchema,
+    primaryPhysician: PhysicianSchema,
+    note: OptionalText(500),
+  });
+
+export const ALLOWED_ID_DOCUMENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+] as const;
+
+export const MAX_ID_DOCUMENT_BYTES = 5 * 1024 * 1024;

@@ -1,163 +1,271 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { ID, Query } from "node-appwrite";
-
-import { Appointment } from "@/types/appwrite.types";
 
 import {
-  APPOINTMENT_COLLECTION_ID,
-  DATABASE_ID,
-  databases,
-  messaging,
-} from "../appwrite.config";
-import { formatDateTime, parseStringify } from "../utils";
+  APPOINTMENT_CLOCK_SKEW_MINUTES,
+  APPOINTMENT_SLOT_MINUTES,
+} from "@/constants";
+import * as appointmentRepo from "@/lib/appwrite/appointment.repository";
+import { toUserMessage } from "@/lib/appwrite/client";
+import * as patientRepo from "@/lib/appwrite/patient.repository";
+import { AdminAuthError, requireAdmin } from "@/lib/auth/admin";
+import { formatDateTime, parseStringify } from "@/lib/utils";
+import {
+  CreateAppointmentServerSchema,
+  IdSchema,
+  PhysicianSchema,
+  StatusSchema,
+  getAppointmentSchema,
+} from "@/lib/validation";
+import { Appointment } from "@/types/appwrite.types";
 
-//  CREATE APPOINTMENT
-export const createAppointment = async (
-  appointment: CreateAppointmentParams
+const MINUTE_MS = 60 * 1000;
+const MAX_PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 10;
+
+const fail = (error: string): { ok: false; error: string } => ({
+  ok: false,
+  error,
+});
+
+const firstIssue = (error: { issues: { message: string }[] }) =>
+  error.issues[0]?.message ?? "Invalid input";
+
+const UNAUTHORIZED = "Unauthorized";
+
+const isInPast = (schedule: Date) =>
+  schedule.getTime() < Date.now() - APPOINTMENT_CLOCK_SKEW_MINUTES * MINUTE_MS;
+
+// True when the same physician already has a non-cancelled appointment within
+// one slot (before or after) of `schedule`. NOTE: check-then-write is not
+// atomic; two simultaneous requests could still both pass. A unique index on
+// (primaryPhysician, slot start) would be needed to close that fully.
+const hasConflict = async (
+  primaryPhysician: string,
+  schedule: Date,
+  excludeId?: string
 ) => {
-  try {
-    const newAppointment = await databases.createDocument(
-      DATABASE_ID!,
-      APPOINTMENT_COLLECTION_ID!,
-      ID.unique(),
-      appointment
-    );
-
-    revalidatePath("/admin");
-    return parseStringify(newAppointment);
-  } catch (error) {
-    console.error("An error occurred while creating a new appointment:", error);
-  }
+  const slotMs = APPOINTMENT_SLOT_MINUTES * MINUTE_MS;
+  const conflict = await appointmentRepo.findConflictingAppointment({
+    primaryPhysician,
+    after: new Date(schedule.getTime() - slotMs),
+    before: new Date(schedule.getTime() + slotMs),
+    excludeId,
+  });
+  return conflict !== null;
 };
 
-//  GET RECENT APPOINTMENTS
-export const getRecentAppointmentList = async () => {
+const CONFLICT_ERROR =
+  "That doctor is already booked around this time. Please choose another time.";
+
+// Not exported: exported functions in a "use server" file are public
+// endpoints, and this must never be callable from the browser.
+const notifyBySms = async (userId: string, content: string) => {
   try {
-    const appointments = await databases.listDocuments(
-      DATABASE_ID!,
-      APPOINTMENT_COLLECTION_ID!,
-      [Query.orderDesc("$createdAt")]
-    );
-
-    // const scheduledAppointments = (
-    //   appointments.documents as Appointment[]
-    // ).filter((appointment) => appointment.status === "scheduled");
-
-    // const pendingAppointments = (
-    //   appointments.documents as Appointment[]
-    // ).filter((appointment) => appointment.status === "pending");
-
-    // const cancelledAppointments = (
-    //   appointments.documents as Appointment[]
-    // ).filter((appointment) => appointment.status === "cancelled");
-
-    // const data = {
-    //   totalCount: appointments.total,
-    //   scheduledCount: scheduledAppointments.length,
-    //   pendingCount: pendingAppointments.length,
-    //   cancelledCount: cancelledAppointments.length,
-    //   documents: appointments.documents,
-    // };
-
-    const initialCounts = {
-      scheduledCount: 0,
-      pendingCount: 0,
-      cancelledCount: 0,
-    };
-
-    const counts = (appointments.documents as Appointment[]).reduce(
-      (acc, appointment) => {
-        switch (appointment.status) {
-          case "scheduled":
-            acc.scheduledCount++;
-            break;
-          case "pending":
-            acc.pendingCount++;
-            break;
-          case "cancelled":
-            acc.cancelledCount++;
-            break;
-        }
-        return acc;
-      },
-      initialCounts
-    );
-
-    const data = {
-      totalCount: appointments.total,
-      ...counts,
-      documents: appointments.documents,
-    };
-
-    return parseStringify(data);
+    await appointmentRepo.sendSms(userId, content);
   } catch (error) {
-    console.error(
-      "An error occurred while retrieving the recent appointments:",
-      error
-    );
-  }
-};
-
-//  SEND SMS NOTIFICATION
-export const sendSMSNotification = async (userId: string, content: string) => {
-  try {
-    // https://appwrite.io/docs/references/1.5.x/server-nodejs/messaging#createSms
-    const message = await messaging.createSms(
-      ID.unique(),
-      content,
-      [],
-      [userId]
-    );
-    return parseStringify(message);
-  } catch (error) {
+    // Best effort: the DB update already succeeded.
     console.error("An error occurred while sending sms:", error);
   }
 };
 
-//  UPDATE APPOINTMENT
-export const updateAppointment = async ({
-  appointmentId,
-  userId,
-  appointment,
-  type,
-}: UpdateAppointmentParams) => {
+export const createAppointment = async (
+  params: CreateAppointmentParams
+): Promise<ActionResult<Appointment>> => {
   try {
-    // Update appointment to scheduled -> https://appwrite.io/docs/references/cloud/server-nodejs/databases#updateDocument
-    const updatedAppointment = await databases.updateDocument(
-      DATABASE_ID!,
-      APPOINTMENT_COLLECTION_ID!,
-      appointmentId,
-      appointment
-    );
+    const parsed = CreateAppointmentServerSchema.safeParse(params);
+    if (!parsed.success) return fail(firstIssue(parsed.error));
+    const data = parsed.data;
 
-    if (!updatedAppointment) throw Error;
+    if (isInPast(data.schedule)) {
+      return fail("Appointment time must be in the future");
+    }
 
-    const smsMessage = `Greetings from PKPCare. ${type === "schedule" ? `Your appointment is confirmed for ${formatDateTime(appointment.schedule!).dateTime} with Dr. ${appointment.primaryPhysician}` : `We regret to inform that your appointment for ${formatDateTime(appointment.schedule!).dateTime} is cancelled. Reason:  ${appointment.cancellationReason}`}.`;
-    await sendSMSNotification(userId, smsMessage);
+    // The patient record must belong to the user. (userId itself is still
+    // client-supplied until patient authentication exists.)
+    const patient = await patientRepo.getPatientByUserId(data.userId);
+    if (!patient || patient.$id !== data.patient) {
+      return fail("Patient not found");
+    }
+
+    if (await hasConflict(data.primaryPhysician, data.schedule)) {
+      return fail(CONFLICT_ERROR);
+    }
+
+    const newAppointment = await appointmentRepo.createAppointmentDocument({
+      userId: data.userId,
+      patient: data.patient,
+      primaryPhysician: data.primaryPhysician,
+      reason: data.reason,
+      schedule: data.schedule,
+      note: data.note,
+      status: "pending", // never trusted from the client
+    });
 
     revalidatePath("/admin");
-    return parseStringify(updatedAppointment);
+    return { ok: true, data: parseStringify(newAppointment) };
   } catch (error) {
-    console.error("An error occurred while scheduling an appointment:", error);
+    console.error("An error occurred while creating a new appointment:", error);
+    return fail(toUserMessage(error, "Patient not found"));
   }
 };
 
-// GET APPOINTMENT
-export const getAppointment = async (appointmentId: string) => {
+export const getRecentAppointmentList = async ({
+  page = 1,
+  pageSize = DEFAULT_PAGE_SIZE,
+  status,
+}: {
+  page?: number;
+  pageSize?: number;
+  status?: Status;
+} = {}): Promise<ActionResult<RecentAppointmentList>> => {
   try {
-    const appointment = await databases.getDocument(
-      DATABASE_ID!,
-      APPOINTMENT_COLLECTION_ID!,
-      appointmentId
+    await requireAdmin();
+
+    const statusFilter = StatusSchema.optional().safeParse(status ?? undefined);
+    if (!statusFilter.success) return fail("Invalid status");
+
+    const safePage = Math.max(1, Math.floor(Number(page)) || 1);
+    const safePageSize = Math.min(
+      MAX_PAGE_SIZE,
+      Math.max(1, Math.floor(Number(pageSize)) || DEFAULT_PAGE_SIZE)
     );
 
-    return parseStringify(appointment);
+    const [totalCount, scheduledCount, pendingCount, cancelledCount, list] =
+      await Promise.all([
+        appointmentRepo.countAppointments(),
+        appointmentRepo.countAppointments("scheduled"),
+        appointmentRepo.countAppointments("pending"),
+        appointmentRepo.countAppointments("cancelled"),
+        appointmentRepo.listAppointments({
+          status: statusFilter.data,
+          limit: safePageSize,
+          offset: (safePage - 1) * safePageSize,
+        }),
+      ]);
+
+    const filteredTotal = statusFilter.data ? list.total : totalCount;
+
+    return {
+      ok: true,
+      data: parseStringify({
+        totalCount,
+        scheduledCount,
+        pendingCount,
+        cancelledCount,
+        documents: list.documents,
+        page: safePage,
+        pageSize: safePageSize,
+        totalPages: Math.max(1, Math.ceil(filteredTotal / safePageSize)),
+      }),
+    };
   } catch (error) {
+    if (error instanceof AdminAuthError) return fail(UNAUTHORIZED);
     console.error(
-      "An error occurred while retrieving the existing patient:",
+      "An error occurred while retrieving the recent appointments:",
       error
     );
+    return fail(toUserMessage(error));
+  }
+};
+
+export const updateAppointment = async ({
+  appointmentId,
+  appointment,
+  type,
+}: UpdateAppointmentParams): Promise<ActionResult<Appointment>> => {
+  // The client-supplied userId is intentionally ignored: the SMS recipient
+  // comes from the stored appointment.
+  try {
+    await requireAdmin();
+
+    if (type !== "schedule" && type !== "cancel") {
+      return fail("Invalid update type");
+    }
+    const parsedId = IdSchema.safeParse(appointmentId);
+    if (!parsedId.success) return fail("Invalid appointment id");
+
+    const parsed = getAppointmentSchema(type).safeParse(appointment);
+    if (!parsed.success) return fail(firstIssue(parsed.error));
+
+    const existing = (await appointmentRepo.getAppointmentDocument(
+      parsedId.data
+    )) as unknown as Appointment;
+
+    if (existing.status === "cancelled") {
+      return fail("This appointment is already cancelled");
+    }
+
+    let updated;
+    let smsMessage: string;
+
+    if (type === "schedule") {
+      const physician = PhysicianSchema.safeParse(parsed.data.primaryPhysician);
+      if (!physician.success) return fail(firstIssue(physician.error));
+
+      const schedule = parsed.data.schedule;
+      if (isInPast(schedule)) {
+        return fail("Appointment time must be in the future");
+      }
+      if (await hasConflict(physician.data, schedule, parsedId.data)) {
+        return fail(CONFLICT_ERROR);
+      }
+
+      updated = await appointmentRepo.updateAppointmentDocument(
+        parsedId.data,
+        {
+          primaryPhysician: physician.data,
+          schedule,
+          status: "scheduled", // derived from type, not trusted from client
+        }
+      );
+      smsMessage = `Greetings from PKPCare. Your appointment is confirmed for ${formatDateTime(schedule).dateTime} with Dr. ${physician.data}.`;
+    } else {
+      // Cancelling only changes status + reason; physician/schedule stay as stored.
+      const reason = parsed.data.cancellationReason;
+      updated = await appointmentRepo.updateAppointmentDocument(
+        parsedId.data,
+        { status: "cancelled", cancellationReason: reason }
+      );
+      smsMessage = `Greetings from PKPCare. We regret to inform that your appointment for ${formatDateTime(existing.schedule).dateTime} is cancelled. Reason: ${reason}.`;
+    }
+
+    await notifyBySms(existing.userId, smsMessage);
+
+    revalidatePath("/admin");
+    return { ok: true, data: parseStringify(updated) };
+  } catch (error) {
+    if (error instanceof AdminAuthError) return fail(UNAUTHORIZED);
+    console.error("An error occurred while scheduling an appointment:", error);
+    return fail(toUserMessage(error, "Appointment not found"));
+  }
+};
+
+export const getAppointment = async (
+  appointmentId: string,
+  userId: string
+): Promise<ActionResult<Appointment>> => {
+  try {
+    const parsedAppointmentId = IdSchema.safeParse(appointmentId);
+    const parsedUserId = IdSchema.safeParse(userId);
+    if (!parsedAppointmentId.success || !parsedUserId.success) {
+      return fail("Invalid id");
+    }
+
+    const appointment = await appointmentRepo.getAppointmentDocument(
+      parsedAppointmentId.data
+    );
+
+    // Same message as a missing document so existence isn't leaked.
+    // (userId is client-supplied until patient authentication exists.)
+    if (appointment.userId !== parsedUserId.data) {
+      return fail("Appointment not found");
+    }
+
+    return { ok: true, data: parseStringify(appointment) };
+  } catch (error) {
+    console.error("An error occurred while retrieving the appointment:", error);
+    return fail(toUserMessage(error, "Appointment not found"));
   }
 };

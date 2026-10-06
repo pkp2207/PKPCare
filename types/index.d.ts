@@ -13,6 +13,7 @@ declare interface CreateUserParams {
   email: string;
   phone: string;
 }
+
 declare interface User extends CreateUserParams {
   $id: string;
 }
@@ -34,8 +35,12 @@ declare interface RegisterUserParams extends CreateUserParams {
   pastMedicalHistory: string | undefined;
   identificationType: string | undefined;
   identificationNumber: string | undefined;
+  // FormData is the transport format from the form; the repository converts it
+  // to identificationDocumentId + identificationDocumentUrl before storage.
   identificationDocument: FormData | undefined;
   privacyConsent: boolean;
+  treatmentConsent: boolean;
+  disclosureConsent: boolean;
 }
 
 declare type CreateAppointmentParams = {
@@ -44,13 +49,34 @@ declare type CreateAppointmentParams = {
   primaryPhysician: string;
   reason: string;
   schedule: Date;
-  status: Status;
   note: string | undefined;
 };
+
+// Server actions never throw to the client; every action resolves to this.
+declare type ActionResult<T = null> =
+  | { ok: true; data: T }
+  | { ok: false; error: string };
 
 declare type UpdateAppointmentParams = {
   appointmentId: string;
   userId: string;
-  appointment: Appointment;
-  type: string;
+  // Only these fields are read by the server; status is derived from `type`.
+  appointment: {
+    primaryPhysician: string;
+    schedule: Date;
+    status?: Status;
+    cancellationReason?: string | null;
+  };
+  type: "schedule" | "cancel" | (string & {});
+};
+
+declare type RecentAppointmentList = {
+  totalCount: number;
+  scheduledCount: number;
+  pendingCount: number;
+  cancelledCount: number;
+  documents: import("@/types/appwrite.types").Appointment[];
+  page: number;
+  pageSize: number;
+  totalPages: number;
 };

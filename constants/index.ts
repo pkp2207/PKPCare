@@ -84,3 +84,10 @@ export const StatusIcon = {
   pending: "/assets/icons/pending.svg",
   cancelled: "/assets/icons/cancelled.svg",
 };
+
+// Appointment slot length; two non-cancelled appointments for the same doctor
+// closer than this are considered a double booking.
+export const APPOINTMENT_SLOT_MINUTES = 30;
+
+// Tolerance when rejecting past appointment times (client/server clock skew).
+export const APPOINTMENT_CLOCK_SKEW_MINUTES = 5;
