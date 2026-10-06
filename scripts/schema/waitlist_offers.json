@@ -1,0 +1,9 @@
+{
+  "id": "waitlist",
+  "name": "Waitlist",
+  "existing": true,
+  "attributes": [],
+  "indexes": [
+    { "key": "idx_status_offered", "type": "key", "attributes": ["status", "offeredAt"], "orders": ["ASC", "ASC"] }
+  ]
+}

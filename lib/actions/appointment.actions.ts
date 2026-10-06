@@ -16,6 +16,8 @@ import {
   decryptFields,
   SENSITIVE_PATIENT_FIELDS,
 } from "@/lib/compliance/crypto";
+import { notifyAppointment } from "@/lib/notifications/events";
+import { onAppointmentCancelled } from "@/lib/payments/refund";
 import { auditSafe } from "@/lib/scheduling/audit";
 import {
   releaseSlot,
@@ -32,7 +34,7 @@ import { markWaitlistFulfilled } from "@/lib/scheduling/offers";
 import { validateSlotBookable } from "@/lib/scheduling/schedule";
 import { slotId as computeSlotId } from "@/lib/scheduling/slot-id";
 import { MINUTE_MS } from "@/lib/scheduling/time";
-import { formatDateTime, parseStringify } from "@/lib/utils";
+import { parseStringify } from "@/lib/utils";
 import {
   CancelMyAppointmentSchema,
   CreateAppointmentServerSchema,
@@ -84,17 +86,6 @@ const hasConflict = async (
     excludeId,
   });
   return conflict !== null;
-};
-
-// Not exported: exported functions in a "use server" file are public
-// endpoints, and none of these helpers may ever be callable from the browser.
-const notifyBySms = async (userId: string, content: string) => {
-  try {
-    await appointmentRepo.sendSms(userId, content);
-  } catch (error) {
-    // Best effort: the DB update already succeeded.
-    console.error("An error occurred while sending sms:", error);
-  }
 };
 
 // Appwrite returns every attribute of a document (null when unset), so the
@@ -264,6 +255,13 @@ export const createAppointment = async (
       await markWaitlistFulfilled(data.userId, resolved.doc.$id, start);
     }
 
+    // Best effort and off by default (NOTIFY_BOOKING_RECEIVED): never fails the action.
+    await notifyAppointment("booking_received", created as never, {
+      patient,
+      doctorName: resolved.name,
+      doctorId: resolved.source === "db" ? resolved.doc.$id : null,
+    });
+
     auditSafe({
       ...actor,
       action: "appointment.create",
@@ -393,7 +391,7 @@ export const updateAppointment = async ({
 
     const supportsScheduling = hasSchedulingAttrs(existing);
     let updated;
-    let smsMessage: string;
+    let notification: () => Promise<unknown>;
     let action: string;
 
     if (type === "schedule") {
@@ -482,7 +480,12 @@ export const updateAppointment = async ({
           }
         }
       }
-      smsMessage = `Greetings from PKPCare. Your appointment is confirmed for ${formatDateTime(schedule).dateTime} with Dr. ${resolved.name}.`;
+      notification = () =>
+        notifyAppointment("confirmed", existing, {
+          start: schedule,
+          doctorName: resolved.name,
+          doctorId: resolved.source === "db" ? resolved.doc.$id : null,
+        });
     } else {
       action = "appointment.cancel";
       // Cancelling only changes status + reason; physician/schedule stay as stored.
@@ -502,10 +505,13 @@ export const updateAppointment = async ({
           start: asDate(existing.schedule),
         });
       }
-      smsMessage = `Greetings from PKPCare. We regret to inform that your appointment for ${formatDateTime(existing.schedule).dateTime} is cancelled. Reason: ${reason}.`;
+      notification = async () => {
+        await notifyAppointment("cancelled", existing);
+        await onAppointmentCancelled(existing);
+      };
     }
 
-    await notifyBySms(existing.userId, smsMessage);
+    await notification();
 
     auditSafe({
       actorId: staff.userId,
@@ -613,10 +619,8 @@ export const cancelMyAppointment = async (
       });
     }
 
-    await notifyBySms(
-      existing.userId,
-      `Greetings from PKPCare. Your appointment for ${formatDateTime(start).dateTime} has been cancelled.`
-    );
+    await notifyAppointment("cancelled", existing);
+    await onAppointmentCancelled(existing);
 
     auditSafe({
       ...actorOf(access, userId),
@@ -738,10 +742,11 @@ export const rescheduleAppointment = async (
       }
     }
 
-    await notifyBySms(
-      existing.userId,
-      `Greetings from PKPCare. Your appointment has been moved to ${formatDateTime(newStart).dateTime} with Dr. ${resolved.name}.`
-    );
+    await notifyAppointment("rescheduled", existing, {
+      start: newStart,
+      doctorName: resolved.name,
+      doctorId: resolved.source === "db" ? resolved.doc.$id : null,
+    });
 
     auditSafe({
       ...actorOf(access, userId),

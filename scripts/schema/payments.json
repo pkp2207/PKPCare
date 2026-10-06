@@ -1,0 +1,25 @@
+{
+  "id": "payments",
+  "name": "Payments",
+  "documentSecurity": false,
+  "permissions": [],
+  "attributes": [
+    { "key": "appointmentId", "type": "string", "size": 36, "required": true },
+    { "key": "userId", "type": "string", "size": 36, "required": true },
+    { "key": "provider", "type": "string", "size": 16, "required": true },
+    { "key": "providerSessionId", "type": "string", "size": 128, "required": true },
+    { "key": "providerPaymentId", "type": "string", "size": 128, "required": false },
+    { "key": "amountMinor", "type": "integer", "min": 0, "max": 100000000, "required": true },
+    { "key": "currency", "type": "string", "size": 3, "required": true },
+    { "key": "status", "type": "enum", "elements": ["pending", "paid", "failed", "expired", "refunded"], "required": true },
+    { "key": "checkoutUrl", "type": "string", "size": 2000, "required": false },
+    { "key": "eventIds", "type": "string", "size": 128, "required": false, "array": true },
+    { "key": "createdAt", "type": "datetime", "required": true },
+    { "key": "expiresAt", "type": "datetime", "required": false },
+    { "key": "paidAt", "type": "datetime", "required": false }
+  ],
+  "indexes": [
+    { "key": "idx_appointment_created", "type": "key", "attributes": ["appointmentId", "createdAt"], "orders": ["ASC", "DESC"] },
+    { "key": "idx_session", "type": "key", "attributes": ["providerSessionId"], "orders": ["ASC"] }
+  ]
+}
