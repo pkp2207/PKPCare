@@ -11,6 +11,9 @@ export const ADMIN_ROUTE_ROLES: ReadonlyArray<{
   { prefix: "/admin/staff", roles: ["admin"] },
   { prefix: "/admin/doctors", roles: ["admin"] },
   { prefix: "/admin/audit", roles: ["admin"] },
+  { prefix: "/admin/privacy", roles: ["admin"] },
+  { prefix: "/admin/analytics", roles: ["admin", "frontdesk"] },
+  { prefix: "/admin/schedule", roles: ROLES },
   { prefix: "/admin", roles: ROLES },
 ];
 

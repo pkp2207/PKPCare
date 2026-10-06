@@ -1,70 +1,110 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef } from "@tanstack/react-table";
 import Image from "next/image";
+import Link from "next/link";
 
+import { LocalTime } from "@/components/admin/LocalTime";
+import type { AppointmentRow } from "@/components/admin/rows";
+import { rowToFormAppointment } from "@/components/admin/rows";
+import { ui } from "@/components/admin/ui";
 import { Doctors } from "@/constants";
-import { formatDateTime } from "@/lib/utils";
-import { Appointment } from "@/types/appwrite.types";
+import {
+  ariaSortForSort,
+  type AppointmentFilters,
+  buildAppointmentsHref,
+  nextScheduleSort,
+} from "@/lib/admin/filters";
+import { cn } from "@/lib/utils";
 
 import { AppointmentModal } from "../AppointmentModal";
 import { StatusBadge } from "../StatusBadge";
 
-export const columns: ColumnDef<Appointment>[] = [
+import type { ColumnAriaMeta } from "./DataTable";
+
+type ColumnOptions = {
+  filters: Partial<AppointmentFilters>;
+  basePath?: string;
+  onOpenDetails: (row: AppointmentRow) => void;
+};
+
+export const createAppointmentColumns = ({
+  filters,
+  basePath = "/admin",
+  onOpenDetails,
+}: ColumnOptions): ColumnDef<AppointmentRow>[] => [
   {
+    id: "index",
     header: "#",
     cell: ({ row, table }) => {
       // DataTable supplies the page offset so numbering continues across pages.
       const { rowOffset = 0 } = (table.options.meta ?? {}) as {
         rowOffset?: number;
       };
-      return <p className="text-14-medium ">{rowOffset + row.index + 1}</p>;
+      return <span className="text-14-medium">{rowOffset + row.index + 1}</span>;
     },
   },
   {
-    accessorKey: "patient",
+    id: "patient",
     header: "Patient",
-    cell: ({ row }) => {
-      const appointment = row.original;
-      return (
-        <p className="text-14-medium ">
-          {appointment.patient?.name ?? "Unknown patient"}
-        </p>
-      );
-    },
+    cell: ({ row }) => (
+      <span className="text-14-medium">{row.original.patientName}</span>
+    ),
   },
   {
-    accessorKey: "status",
+    id: "status",
     header: "Status",
-    cell: ({ row }) => {
-      const appointment = row.original;
-      return (
-        <div className="min-w-[115px]">
-          <StatusBadge status={appointment.status} />
-        </div>
-      );
-    },
+    cell: ({ row }) => (
+      <div className="min-w-[115px]">
+        <StatusBadge status={row.original.status} />
+      </div>
+    ),
   },
   {
-    accessorKey: "schedule",
-    header: "Appointment",
-    cell: ({ row }) => {
-      const appointment = row.original;
+    id: "schedule",
+    meta: { ariaSort: ariaSortForSort(filters.sort) } satisfies ColumnAriaMeta,
+    header: () => {
+      const next = nextScheduleSort(filters.sort);
+      const arrow =
+        filters.sort === "schedule_asc"
+          ? "↑"
+          : filters.sort === "schedule_desc"
+            ? "↓"
+            : "↕";
       return (
-        <p className="text-14-regular min-w-[100px]">
-          {formatDateTime(appointment.schedule).dateTime}
-        </p>
+        <Link
+          href={buildAppointmentsHref(filters, { sort: next, page: 1 }, basePath)}
+          className={cn(
+            "inline-flex min-h-11 items-center gap-1 rounded text-dark-700 hover:text-white",
+            ui.focus
+          )}
+          title={
+            next === "schedule_asc"
+              ? "Sort by date, earliest first"
+              : next === "schedule_desc"
+                ? "Sort by date, latest first"
+                : "Remove date sorting"
+          }
+        >
+          Appointment
+          <span aria-hidden="true">{arrow}</span>
+        </Link>
       );
     },
+    cell: ({ row }) => (
+      <LocalTime
+        iso={row.original.schedule}
+        className="text-14-regular inline-block min-w-[100px]"
+      />
+    ),
   },
   {
-    accessorKey: "primaryPhysician",
+    id: "doctor",
     header: "Doctor",
     cell: ({ row }) => {
       const appointment = row.original;
-
       const doctor = Doctors.find(
-        (doctor) => doctor.name === appointment.primaryPhysician
+        (candidate) => candidate.name === appointment.physician
       );
 
       return (
@@ -77,9 +117,12 @@ export const columns: ColumnDef<Appointment>[] = [
             height={100}
             className="size-8"
           />
-          <p className="whitespace-nowrap">
-            Dr. {doctor?.name ?? appointment.primaryPhysician}
-          </p>
+          <div>
+            <p className="whitespace-nowrap">Dr. {appointment.physician}</p>
+            {appointment.visitType === "video" && (
+              <p className="text-12-regular text-blue-500">Video visit</p>
+            )}
+          </div>
         </div>
       );
     },
@@ -89,24 +132,37 @@ export const columns: ColumnDef<Appointment>[] = [
     header: () => <div className="pl-4">Actions</div>,
     cell: ({ row }) => {
       const appointment = row.original;
-
-      // Without a linked patient there is nothing to schedule or cancel for.
-      if (!appointment.patient?.$id) return null;
+      const form = rowToFormAppointment(appointment);
 
       return (
-        <div className="flex gap-1">
-          <AppointmentModal
-            patientId={appointment.patient.$id}
-            userId={appointment.userId}
-            appointment={appointment}
-            type="schedule"
-          />
-          <AppointmentModal
-            patientId={appointment.patient.$id}
-            userId={appointment.userId}
-            appointment={appointment}
-            type="cancel"
-          />
+        <div className="flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onOpenDetails(appointment)}
+            className={cn(ui.btnGhost, ui.btnSm, "text-blue-500")}
+            aria-label={`Details for ${appointment.patientName}`}
+          >
+            Details
+          </button>
+          {/* Without a linked patient there is nothing to schedule or cancel for. */}
+          {appointment.patientId && (
+            <>
+              <AppointmentModal
+                patientId={appointment.patientId}
+                userId={appointment.userId}
+                appointment={form}
+                patientName={appointment.patientName}
+                type="schedule"
+              />
+              <AppointmentModal
+                patientId={appointment.patientId}
+                userId={appointment.userId}
+                appointment={form}
+                patientName={appointment.patientName}
+                type="cancel"
+              />
+            </>
+          )}
         </div>
       );
     },

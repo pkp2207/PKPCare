@@ -1,4 +1,8 @@
+import { AdminShell } from "@/components/admin/AdminShell";
 import { requireStaffPage } from "@/lib/auth/guards";
+
+// Per-request auth: never prerender anything under /admin.
+export const dynamic = "force-dynamic";
 
 // Belt-and-suspenders: middleware guards first (edge, incl. per-path role rules in
 // lib/auth/access.ts), this layout confirms at the server-component layer so the
@@ -10,7 +14,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requireStaffPage();
+  const session = await requireStaffPage();
 
-  return <>{children}</>;
+  return <AdminShell session={session}>{children}</AdminShell>;
 }
