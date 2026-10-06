@@ -1,0 +1,26 @@
+{
+  "id": "audit_logs",
+  "name": "Audit Logs",
+  "attributes": [
+    { "key": "actorId", "type": "string", "size": 64, "required": false },
+    { "key": "actorRole", "type": "string", "size": 32, "required": true },
+    { "key": "action", "type": "string", "size": 64, "required": true },
+    { "key": "resource", "type": "string", "size": 64, "required": true },
+    { "key": "resourceId", "type": "string", "size": 64, "required": false },
+    {
+      "key": "outcome",
+      "type": "enum",
+      "elements": ["success", "denied", "error"],
+      "required": true
+    },
+    { "key": "requestId", "type": "string", "size": 64, "required": false },
+    { "key": "ip", "type": "string", "size": 64, "required": false },
+    { "key": "meta", "type": "string", "size": 1024, "required": false },
+    { "key": "createdAt", "type": "datetime", "required": true }
+  ],
+  "indexes": [
+    { "key": "idx_created_at", "type": "key", "attributes": ["createdAt"], "orders": ["DESC"] },
+    { "key": "idx_action", "type": "key", "attributes": ["action"], "orders": ["ASC"] },
+    { "key": "idx_actor", "type": "key", "attributes": ["actorId"], "orders": ["ASC"] }
+  ]
+}

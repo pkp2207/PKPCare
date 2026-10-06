@@ -1,0 +1,98 @@
+{
+  "id": "deletion_requests",
+  "name": "Deletion Requests",
+  "attributes": [
+    {
+      "key": "userId",
+      "type": "string",
+      "size": 64,
+      "required": true
+    },
+    {
+      "key": "status",
+      "type": "enum",
+      "elements": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "required": true
+    },
+    {
+      "key": "reason",
+      "type": "string",
+      "size": 500,
+      "required": false
+    },
+    {
+      "key": "note",
+      "type": "string",
+      "size": 500,
+      "required": false
+    },
+    {
+      "key": "resolvedBy",
+      "type": "string",
+      "size": 64,
+      "required": false
+    },
+    {
+      "key": "resolvedAt",
+      "type": "datetime",
+      "required": false
+    },
+    {
+      "key": "erasureSummary",
+      "type": "string",
+      "size": 1024,
+      "required": false
+    },
+    {
+      "key": "createdAt",
+      "type": "datetime",
+      "required": true
+    }
+  ],
+  "indexes": [
+    {
+      "key": "idx_status",
+      "type": "key",
+      "attributes": [
+        "status"
+      ],
+      "orders": [
+        "ASC"
+      ]
+    },
+    {
+      "key": "idx_user",
+      "type": "key",
+      "attributes": [
+        "userId"
+      ],
+      "orders": [
+        "ASC"
+      ]
+    },
+    {
+      "key": "idx_created_at",
+      "type": "key",
+      "attributes": [
+        "createdAt"
+      ],
+      "orders": [
+        "DESC"
+      ]
+    },
+    {
+      "key": "idx_resolved_at",
+      "type": "key",
+      "attributes": [
+        "resolvedAt"
+      ],
+      "orders": [
+        "ASC"
+      ]
+    }
+  ]
+}

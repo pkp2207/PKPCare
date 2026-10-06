@@ -1,0 +1,27 @@
+{
+  "id": "consents",
+  "name": "Consents",
+  "attributes": [
+    { "key": "userId", "type": "string", "size": 64, "required": true },
+    {
+      "key": "purpose",
+      "type": "enum",
+      "elements": ["treatment", "disclosure", "privacy"],
+      "required": true
+    },
+    { "key": "granted", "type": "boolean", "required": true },
+    { "key": "policyVersion", "type": "string", "size": 32, "required": true },
+    { "key": "source", "type": "string", "size": 32, "required": false },
+    { "key": "ip", "type": "string", "size": 64, "required": false },
+    { "key": "createdAt", "type": "datetime", "required": true }
+  ],
+  "indexes": [
+    {
+      "key": "idx_user_purpose",
+      "type": "key",
+      "attributes": ["userId", "purpose"],
+      "orders": ["ASC", "ASC"]
+    },
+    { "key": "idx_created_at", "type": "key", "attributes": ["createdAt"], "orders": ["DESC"] }
+  ]
+}
