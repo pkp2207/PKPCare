@@ -21,6 +21,15 @@ const nextConfig = {
         source: "/:path*",
         headers: securityHeaders,
       },
+      // Visit links carry a bearer token in the path: never leak it via Referer.
+      {
+        source: "/visit/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
+      {
+        source: "/a/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
     ];
   },
 };
