@@ -1,14 +1,33 @@
 import Image from "next/image";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
+import { ErrorState } from "@/components/ErrorState";
 import RegisterForm from "@/components/forms/RegisterForm";
 import { getPatient, getUser } from "@/lib/actions/patient.actions";
 
 const Register = async ({ params: { userId } }: SearchParamProps) => {
-  const user = await getUser(userId);
-  const patient = await getPatient(userId);
+  const [userResult, patientResult] = await Promise.all([
+    getUser(userId),
+    getPatient(userId),
+  ]);
 
-  if (patient) redirect(`/patients/${userId}/new-appointment`);
+  if (!userResult.ok) notFound();
+
+  if (!patientResult.ok) {
+    return (
+      <ErrorState
+        title="Couldn't load your profile"
+        message={patientResult.error}
+        href={`/patients/${userId}/register`}
+        linkLabel="Try again"
+      />
+    );
+  }
+
+  // Already registered: skip straight to booking.
+  if (patientResult.data) redirect(`/patients/${userId}/new-appointment`);
+
+  const user = userResult.data;
 
   return (
     <div className="flex h-screen max-h-screen">
@@ -18,7 +37,7 @@ const Register = async ({ params: { userId } }: SearchParamProps) => {
             src="/assets/icons/logo-full-pkp.png"
             height={200}
             width={200}
-            alt="patient"
+            alt="PKPCare"
             className="mb-12 w-fit"
           />
 
@@ -32,7 +51,7 @@ const Register = async ({ params: { userId } }: SearchParamProps) => {
         src="/assets/images/register-img.png"
         height={1000}
         width={1000}
-        alt="patient"
+        alt="Patient registration illustration"
         className="side-img max-w-[390px]"
       />
     </div>

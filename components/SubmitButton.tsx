@@ -13,13 +13,15 @@ const SubmitButton = ({ isLoading, className, children }: ButtonProps) => {
     <Button
       type="submit"
       disabled={isLoading}
+      aria-busy={isLoading}
       className={className ?? "shad-primary-btn w-full"}
     >
       {isLoading ? (
         <div className="flex items-center gap-4">
           <Image
             src="/assets/icons/loader.svg"
-            alt="loader"
+            alt=""
+            aria-hidden="true"
             width={24}
             height={24}
             className="animate-spin"

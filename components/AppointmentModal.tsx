@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import { Appointment } from "@/types/appwrite.types";
 
 import { AppointmentForm } from "./forms/AppointmentForm";
@@ -27,8 +28,6 @@ export const AppointmentModal = ({
   userId: string;
   appointment?: Appointment;
   type: "schedule" | "cancel";
-  title: string;
-  description: string;
 }) => {
   const [open, setOpen] = useState(false);
 
@@ -37,7 +36,12 @@ export const AppointmentModal = ({
       <DialogTrigger asChild>
         <Button
           variant="ghost"
-          className={`capitalize ${type === "schedule" && "text-green-500"}`}
+          className={cn("capitalize", type === "schedule" && "text-green-500")}
+          aria-label={
+            appointment?.patient?.name
+              ? `${type} appointment for ${appointment.patient.name}`
+              : `${type} appointment`
+          }
         >
           {type}
         </Button>

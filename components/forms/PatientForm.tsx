@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import * as Sentry from "@sentry/nextjs";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -12,11 +13,13 @@ import { UserFormValidation } from "@/lib/validation";
 
 import "react-phone-number-input/style.css";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
+import { FormError } from "../FormError";
 import SubmitButton from "../SubmitButton";
 
 export const PatientForm = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof UserFormValidation>>({
     resolver: zodResolver(UserFormValidation),
@@ -28,25 +31,28 @@ export const PatientForm = () => {
   });
 
   const onSubmit = async (values: z.infer<typeof UserFormValidation>) => {
+    setError(null);
     setIsLoading(true);
 
     try {
-      const user = {
+      const result = await createUser({
         name: values.name,
         email: values.email,
         phone: values.phone,
-      };
+      });
 
-      const newUser = await createUser(user);
-
-      if (newUser) {
-        router.push(`/patients/${newUser.$id}/register`);
+      if (!result.ok) {
+        setError(result.error);
+        return;
       }
-    } catch (error) {
-      console.log(error);
-    }
 
-    setIsLoading(false);
+      router.push(`/patients/${result.data.$id}/register`);
+    } catch (err) {
+      Sentry.captureException(err);
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -84,6 +90,8 @@ export const PatientForm = () => {
           label="Phone number"
           placeholder="(555) 123-4567"
         />
+
+        <FormError message={error} />
 
         <SubmitButton isLoading={isLoading}>Get Started</SubmitButton>
       </form>

@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
+import { ErrorState } from "@/components/ErrorState";
 import { Button } from "@/components/ui/button";
 import { Doctors } from "@/constants";
 import { getAppointment } from "@/lib/actions/appointment.actions";
@@ -11,7 +13,22 @@ const RequestSuccess = async ({
   params: { userId },
 }: SearchParamProps) => {
   const appointmentId = (searchParams?.appointmentId as string) || "";
-  const appointment = await getAppointment(appointmentId);
+  if (!appointmentId) notFound();
+
+  const result = await getAppointment(appointmentId, userId);
+
+  if (!result.ok) {
+    return (
+      <ErrorState
+        title="Couldn't load your appointment"
+        message={result.error}
+        href={`/patients/${userId}/new-appointment`}
+        linkLabel="Book an appointment"
+      />
+    );
+  }
+
+  const appointment = result.data;
 
   const doctor = Doctors.find(
     (doctor) => doctor.name === appointment.primaryPhysician
@@ -25,7 +42,7 @@ const RequestSuccess = async ({
             src="/assets/icons/logo-full-pkp.png"
             height={200}
             width={200}
-            alt="logo"
+            alt="PKPCare"
             className="w-fit"
           />
         </Link>
@@ -48,20 +65,24 @@ const RequestSuccess = async ({
           <p>Requested appointment details: </p>
           <div className="flex items-center gap-3">
             <Image
-              src={doctor?.image!}
-              alt="doctor"
+              src={doctor?.image ?? "/assets/images/dr-green.png"}
+              alt=""
+              aria-hidden="true"
               width={100}
               height={100}
               className="size-6"
             />
-            <p className="whitespace-nowrap">Dr. {doctor?.name}</p>
+            <p className="whitespace-nowrap">
+              Dr. {doctor?.name ?? appointment.primaryPhysician}
+            </p>
           </div>
           <div className="flex gap-2">
             <Image
               src="/assets/icons/calendar.svg"
               height={24}
               width={24}
-              alt="calendar"
+              alt=""
+              aria-hidden="true"
             />
             <p> {formatDateTime(appointment.schedule).dateTime}</p>
           </div>

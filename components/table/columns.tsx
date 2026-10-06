@@ -13,8 +13,12 @@ import { StatusBadge } from "../StatusBadge";
 export const columns: ColumnDef<Appointment>[] = [
   {
     header: "#",
-    cell: ({ row }) => {
-      return <p className="text-14-medium ">{row.index + 1}</p>;
+    cell: ({ row, table }) => {
+      // DataTable supplies the page offset so numbering continues across pages.
+      const { rowOffset = 0 } = (table.options.meta ?? {}) as {
+        rowOffset?: number;
+      };
+      return <p className="text-14-medium ">{rowOffset + row.index + 1}</p>;
     },
   },
   {
@@ -22,7 +26,11 @@ export const columns: ColumnDef<Appointment>[] = [
     header: "Patient",
     cell: ({ row }) => {
       const appointment = row.original;
-      return <p className="text-14-medium ">{appointment.patient.name}</p>;
+      return (
+        <p className="text-14-medium ">
+          {appointment.patient?.name ?? "Unknown patient"}
+        </p>
+      );
     },
   },
   {
@@ -62,13 +70,16 @@ export const columns: ColumnDef<Appointment>[] = [
       return (
         <div className="flex items-center gap-3">
           <Image
-            src={doctor?.image!}
-            alt="doctor"
+            src={doctor?.image ?? "/assets/images/dr-green.png"}
+            alt=""
+            aria-hidden="true"
             width={100}
             height={100}
             className="size-8"
           />
-          <p className="whitespace-nowrap">Dr. {doctor?.name}</p>
+          <p className="whitespace-nowrap">
+            Dr. {doctor?.name ?? appointment.primaryPhysician}
+          </p>
         </div>
       );
     },
@@ -79,6 +90,9 @@ export const columns: ColumnDef<Appointment>[] = [
     cell: ({ row }) => {
       const appointment = row.original;
 
+      // Without a linked patient there is nothing to schedule or cancel for.
+      if (!appointment.patient?.$id) return null;
+
       return (
         <div className="flex gap-1">
           <AppointmentModal
@@ -86,16 +100,12 @@ export const columns: ColumnDef<Appointment>[] = [
             userId={appointment.userId}
             appointment={appointment}
             type="schedule"
-            title="Schedule Appointment"
-            description="Please confirm the following details to schedule."
           />
           <AppointmentModal
             patientId={appointment.patient.$id}
             userId={appointment.userId}
             appointment={appointment}
             type="cancel"
-            title="Cancel Appointment"
-            description="Are you sure you want to cancel your appointment?"
           />
         </div>
       );

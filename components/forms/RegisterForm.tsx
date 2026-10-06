@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import * as Sentry from "@sentry/nextjs";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -23,12 +24,14 @@ import { PatientFormValidation } from "@/lib/validation";
 import "react-datepicker/dist/react-datepicker.css";
 import "react-phone-number-input/style.css";
 import CustomFormField, { FormFieldType } from "../CustomFormField";
-import { FileUploader } from "../FileUploader";
+import { FileUploader, validateIdentificationFile } from "../FileUploader";
+import { FormError } from "../FormError";
 import SubmitButton from "../SubmitButton";
 
 const RegisterForm = ({ user }: { user: User }) => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof PatientFormValidation>>({
     resolver: zodResolver(PatientFormValidation),
@@ -41,25 +44,29 @@ const RegisterForm = ({ user }: { user: User }) => {
   });
 
   const onSubmit = async (values: z.infer<typeof PatientFormValidation>) => {
-    setIsLoading(true);
+    setError(null);
 
     // Store file info in form data as
-    let formData;
-    if (
-      values.identificationDocument &&
-      values.identificationDocument?.length > 0
-    ) {
-      const blobFile = new Blob([values.identificationDocument[0]], {
-        type: values.identificationDocument[0].type,
-      });
+    let formData: FormData | undefined;
+    const file = values.identificationDocument?.[0];
+    if (file) {
+      const fileError = validateIdentificationFile(file);
+      if (fileError) {
+        setError(fileError);
+        return;
+      }
+
+      const blobFile = new Blob([file], { type: file.type });
 
       formData = new FormData();
       formData.append("blobFile", blobFile);
-      formData.append("fileName", values.identificationDocument[0].name);
+      formData.append("fileName", file.name);
     }
 
+    setIsLoading(true);
+
     try {
-      const patient = {
+      const result = await registerPatient({
         userId: user.$id,
         name: values.name,
         email: values.email,
@@ -79,22 +86,24 @@ const RegisterForm = ({ user }: { user: User }) => {
         pastMedicalHistory: values.pastMedicalHistory,
         identificationType: values.identificationType,
         identificationNumber: values.identificationNumber,
-        identificationDocument: values.identificationDocument
-          ? formData
-          : undefined,
+        identificationDocument: formData,
         privacyConsent: values.privacyConsent,
-      };
+        treatmentConsent: values.treatmentConsent,
+        disclosureConsent: values.disclosureConsent,
+      });
 
-      const newPatient = await registerPatient(patient);
-
-      if (newPatient) {
-        router.push(`/patients/${user.$id}/new-appointment`);
+      if (!result.ok) {
+        setError(result.error);
+        return;
       }
-    } catch (error) {
-      console.log(error);
-    }
 
-    setIsLoading(false);
+      router.push(`/patients/${user.$id}/new-appointment`);
+    } catch (err) {
+      Sentry.captureException(err);
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -239,7 +248,7 @@ const RegisterForm = ({ user }: { user: User }) => {
                     src={doctor.image}
                     width={32}
                     height={32}
-                    alt="doctor"
+                    alt=""
                     className="rounded-full border border-dark-500"
                   />
                   <p>{doctor.name}</p>
@@ -308,7 +317,7 @@ const RegisterForm = ({ user }: { user: User }) => {
 
         <section className="space-y-6">
           <div className="mb-9 space-y-1">
-            <h2 className="sub-header">Identification and Verfication</h2>
+            <h2 className="sub-header">Identification and Verification</h2>
           </div>
 
           <CustomFormField
@@ -374,6 +383,8 @@ const RegisterForm = ({ user }: { user: User }) => {
             privacy policy"
           />
         </section>
+
+        <FormError message={error} />
 
         <SubmitButton isLoading={isLoading}>Submit and Continue</SubmitButton>
       </form>

@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import * as Sentry from "@sentry/nextjs";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Dispatch, SetStateAction, useState } from "react";
@@ -19,8 +20,16 @@ import { Appointment } from "@/types/appwrite.types";
 import "react-datepicker/dist/react-datepicker.css";
 
 import CustomFormField, { FormFieldType } from "../CustomFormField";
+import { FormError } from "../FormError";
 import SubmitButton from "../SubmitButton";
 import { Form } from "../ui/form";
+
+/** Now rounded up to the next 30-minute mark (always strictly in the future). */
+const getDefaultSchedule = () => {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() + (30 - (date.getMinutes() % 30)), 0, 0);
+  return date;
+};
 
 export const AppointmentForm = ({
   userId,
@@ -37,17 +46,20 @@ export const AppointmentForm = ({
 }) => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Fixed for the lifetime of the form so the picker's bounds don't drift.
+  const [minDate] = useState(() => new Date());
 
   const AppointmentFormValidation = getAppointmentSchema(type);
 
   const form = useForm<z.infer<typeof AppointmentFormValidation>>({
     resolver: zodResolver(AppointmentFormValidation),
     defaultValues: {
-      primaryPhysician: appointment ? appointment?.primaryPhysician : "",
+      primaryPhysician: appointment?.primaryPhysician ?? "",
       schedule: appointment
-        ? new Date(appointment?.schedule!)
-        : new Date(Date.now()),
-      reason: appointment ? appointment.reason : "",
+        ? new Date(appointment.schedule)
+        : getDefaultSchedule(),
+      reason: appointment?.reason ?? "",
       note: appointment?.note || "",
       cancellationReason: appointment?.cancellationReason || "",
     },
@@ -56,64 +68,71 @@ export const AppointmentForm = ({
   const onSubmit = async (
     values: z.infer<typeof AppointmentFormValidation>
   ) => {
+    setError(null);
     setIsLoading(true);
 
-    let status;
-    switch (type) {
-      case "schedule":
-        status = "scheduled";
-        break;
-      case "cancel":
-        status = "cancelled";
-        break;
-      default:
-        status = "pending";
-    }
-
     try {
-      if (type === "create" && patientId) {
-        const appointment = {
+      if (type === "create") {
+        if (!patientId) {
+          setError(
+            "We couldn't find your patient record. Please register first."
+          );
+          return;
+        }
+
+        // Status is set to "pending" by the server.
+        const result = await createAppointment({
           userId,
           patient: patientId,
           primaryPhysician: values.primaryPhysician,
           schedule: new Date(values.schedule),
-          reason: values.reason!,
-          status: status as Status,
+          reason: values.reason ?? "",
           note: values.note,
-        };
+        });
 
-        const newAppointment = await createAppointment(appointment);
-
-        if (newAppointment) {
-          form.reset();
-          router.push(
-            `/patients/${userId}/new-appointment/success?appointmentId=${newAppointment.$id}`
-          );
+        if (!result.ok) {
+          setError(result.error);
+          return;
         }
+
+        form.reset();
+        router.push(
+          `/patients/${userId}/new-appointment/success?appointmentId=${result.data.$id}`
+        );
       } else {
-        const appointmentToUpdate = {
+        if (!appointment?.$id) {
+          setError(
+            "We couldn't find this appointment. Please refresh the page."
+          );
+          return;
+        }
+
+        // The server derives the resulting status from `type`.
+        const result = await updateAppointment({
           userId,
-          appointmentId: appointment?.$id!,
+          appointmentId: appointment.$id,
           appointment: {
             primaryPhysician: values.primaryPhysician,
             schedule: new Date(values.schedule),
-            status: status as Status,
             cancellationReason: values.cancellationReason,
           },
           type,
-        };
+        });
 
-        const updatedAppointment = await updateAppointment(appointmentToUpdate);
-
-        if (updatedAppointment) {
-          setOpen && setOpen(false);
-          form.reset();
+        if (!result.ok) {
+          setError(result.error);
+          return;
         }
+
+        setOpen?.(false);
+        form.reset();
       }
-    } catch (error) {
-      console.log(error);
+    } catch (err) {
+      Sentry.captureException(err);
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   let buttonLabel;
@@ -125,7 +144,7 @@ export const AppointmentForm = ({
       buttonLabel = "Schedule Appointment";
       break;
     default:
-      buttonLabel = "Submit Apppointment";
+      buttonLabel = "Submit Appointment";
   }
 
   return (
@@ -156,7 +175,7 @@ export const AppointmentForm = ({
                       src={doctor.image}
                       width={32}
                       height={32}
-                      alt="doctor"
+                      alt=""
                       className="rounded-full border border-dark-500"
                     />
                     <p>{doctor.name}</p>
@@ -171,6 +190,7 @@ export const AppointmentForm = ({
               name="schedule"
               label="Expected appointment date"
               showTimeSelect
+              minDate={minDate}
               dateFormat="MM/dd/yyyy  -  h:mm aa"
             />
 
@@ -182,7 +202,7 @@ export const AppointmentForm = ({
                 control={form.control}
                 name="reason"
                 label="Appointment reason"
-                placeholder="Annual montly check-up"
+                placeholder="Annual monthly check-up"
                 disabled={type === "schedule"}
               />
 
@@ -207,6 +227,8 @@ export const AppointmentForm = ({
             placeholder="Urgent meeting came up"
           />
         )}
+
+        <FormError message={error} />
 
         <SubmitButton
           isLoading={isLoading}

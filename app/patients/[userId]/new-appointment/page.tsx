@@ -1,10 +1,28 @@
 import Image from "next/image";
+import { redirect } from "next/navigation";
 
+import { ErrorState } from "@/components/ErrorState";
 import { AppointmentForm } from "@/components/forms/AppointmentForm";
 import { getPatient } from "@/lib/actions/patient.actions";
 
 const Appointment = async ({ params: { userId } }: SearchParamProps) => {
-  const patient = await getPatient(userId);
+  const result = await getPatient(userId);
+
+  if (!result.ok) {
+    return (
+      <ErrorState
+        title="Couldn't load your profile"
+        message={result.error}
+        href={`/patients/${userId}/new-appointment`}
+        linkLabel="Try again"
+      />
+    );
+  }
+
+  // Not registered yet: finish registration first.
+  if (!result.data) redirect(`/patients/${userId}/register`);
+
+  const patient = result.data;
 
   return (
     <div className="flex h-screen max-h-screen">
@@ -14,12 +32,12 @@ const Appointment = async ({ params: { userId } }: SearchParamProps) => {
             src="/assets/icons/logo-full-pkp.png"
             height={200}
             width={200}
-            alt="logo"
+            alt="PKPCare"
             className="mb-12"
           />
 
           <AppointmentForm
-            patientId={patient?.$id}
+            patientId={patient.$id}
             userId={userId}
             type="create"
           />
@@ -32,7 +50,7 @@ const Appointment = async ({ params: { userId } }: SearchParamProps) => {
         src="/assets/images/appointment-img.png"
         height={1500}
         width={1500}
-        alt="appointment"
+        alt="Doctor reviewing an appointment"
         className="side-img max-w-[390px] bg-bottom"
       />
     </div>

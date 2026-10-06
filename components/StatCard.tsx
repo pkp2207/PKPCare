@@ -22,7 +22,8 @@ export const StatCard = ({ count = 0, label, icon, type }: StatCardProps) => {
           src={icon}
           height={32}
           width={32}
-          alt="appointments"
+          alt=""
+          aria-hidden="true"
           className="size-8 w-fit"
         />
         <h2 className="text-32-bold text-white">{count}</h2>
