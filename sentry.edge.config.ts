@@ -8,8 +8,11 @@ import * as Sentry from "@sentry/nextjs";
 Sentry.init({
   dsn: "https://8c392f2cfb85fec6b6c63135ec6602ad@o4507555816800256.ingest.us.sentry.io/4507560044920832",
 
-  // Adjust this value in production, or use tracesSampler for greater control
-  tracesSampleRate: 1,
+  // Sample fewer traces in production; capture everything in development.
+  tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1,
+
+  // Do not send PII (IP addresses, cookies, user data) to Sentry; this app handles patient data.
+  sendDefaultPii: false,
 
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,

@@ -1,6 +1,29 @@
 import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const securityHeaders = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=()",
+  },
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains; preload",
+  },
+];
+
+const nextConfig = {
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders,
+      },
+    ];
+  },
+};
 
 export default withSentryConfig(nextConfig, {
   // For all available options, see:
@@ -9,6 +32,10 @@ export default withSentryConfig(nextConfig, {
   org: "svnit-ht",
   project: "pkp-care",
   authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Skip source-map upload when no auth token is set (local dev / CI without Sentry).
+  // This prevents the Sentry CLI from blocking the build with SSL/auth errors.
+  dryRun: !process.env.SENTRY_AUTH_TOKEN,
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
