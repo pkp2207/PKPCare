@@ -48,6 +48,10 @@ export const AUDIT_META_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   "alreadyPending",
   "actor",
   "step",
+  "model",
+  "inputTokens",
+  "outputTokens",
+  "outcome",
 ]);
 
 const MAX_META_STRING = 64;
