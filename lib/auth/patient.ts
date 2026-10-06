@@ -17,10 +17,11 @@ export class PatientAuthError extends Error {
 export type PatientSession = { userId: string };
 
 export async function getPatientSession(): Promise<PatientSession | null> {
+  // Cookies first (see getStaffSession): keeps callers dynamic even without a secret.
+  const token = cookies().get(PATIENT_SESSION_COOKIE)?.value;
   const secret = process.env.ADMIN_SESSION_SECRET;
   if (!secret) return null;
 
-  const token = cookies().get(PATIENT_SESSION_COOKIE)?.value;
   const session = await readPatientToken(token, secret);
   return session ? { userId: session.sub } : null;
 }

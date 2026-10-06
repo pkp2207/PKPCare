@@ -23,10 +23,13 @@ export type StaffSession = {
 // ALLOW_LEGACY_ADMIN_PASSKEY is not "false", a legacy passkey session which maps
 // to role "admin"). Fails closed if ADMIN_SESSION_SECRET is not configured.
 export async function getStaffSession(): Promise<StaffSession | null> {
+  // Read cookies first, unconditionally: it opts the caller into dynamic rendering.
+  // Returning early on a missing secret would let a build without runtime env
+  // prerender admin pages as static (baked-in redirect) instead of per request.
+  const token = cookies().get(SESSION_COOKIE)?.value;
   const secret = process.env.ADMIN_SESSION_SECRET;
   if (!secret) return null;
 
-  const token = cookies().get(SESSION_COOKIE)?.value;
   const session = await readStaffToken(token, secret, isLegacyPasskeyAllowed());
   if (!session || !session.role) return null;
 
