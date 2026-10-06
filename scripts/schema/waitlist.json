@@ -1,0 +1,21 @@
+{
+  "id": "waitlist",
+  "name": "Waitlist",
+  "documentSecurity": false,
+  "permissions": [],
+  "attributes": [
+    { "key": "userId", "type": "string", "size": 36, "required": true },
+    { "key": "patientId", "type": "string", "size": 36, "required": true },
+    { "key": "doctorId", "type": "string", "size": 36, "required": true },
+    { "key": "earliest", "type": "datetime", "required": true },
+    { "key": "latest", "type": "datetime", "required": true },
+    { "key": "status", "type": "enum", "elements": ["waiting", "offered", "fulfilled", "expired"], "required": true },
+    { "key": "createdAt", "type": "datetime", "required": true },
+    { "key": "offeredStart", "type": "datetime", "required": false },
+    { "key": "offeredAt", "type": "datetime", "required": false }
+  ],
+  "indexes": [
+    { "key": "idx_user_status", "type": "key", "attributes": ["userId", "status"], "orders": ["ASC", "ASC"] },
+    { "key": "idx_doctor_status_created", "type": "key", "attributes": ["doctorId", "status", "createdAt"], "orders": ["ASC", "ASC", "ASC"] }
+  ]
+}

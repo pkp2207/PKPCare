@@ -1,5 +1,10 @@
 import { ID, InputFile, Query } from "node-appwrite";
 
+import {
+  decryptFields,
+  encryptFields,
+  SENSITIVE_PATIENT_FIELDS,
+} from "@/lib/compliance/crypto";
 import { getEnv } from "@/lib/env";
 
 import { getClients } from "./client";
@@ -57,22 +62,38 @@ export const deleteFile = async (fileId: string) => {
   return getClients().storage.deleteFile(BUCKET_ID, fileId);
 };
 
+/**
+ * Sensitive fields are encrypted before they reach Appwrite and decrypted on
+ * the way out, so callers only ever see plaintext. The returned document is
+ * decrypted too (never log it).
+ */
 export const createPatientDocument = async (patient: PatientDocumentData) => {
   const { DATABASE_ID, PATIENT_COLLECTION_ID } = getEnv();
-  return getClients().databases.createDocument(
+  const created = await getClients().databases.createDocument(
     DATABASE_ID,
     PATIENT_COLLECTION_ID,
     ID.unique(),
-    patient
+    encryptFields(patient, SENSITIVE_PATIENT_FIELDS)
   );
+  return decryptFields(created, SENSITIVE_PATIENT_FIELDS);
 };
 
-export const getPatientByUserId = async (userId: string) => {
+/**
+ * `decrypt: false` skips field decryption for callers that only need the
+ * document id / ownership (no PHI leaves the repository layer decrypted
+ * unless requested).
+ */
+export const getPatientByUserId = async (
+  userId: string,
+  { decrypt = true }: { decrypt?: boolean } = {}
+) => {
   const { DATABASE_ID, PATIENT_COLLECTION_ID } = getEnv();
   const result = await getClients().databases.listDocuments(
     DATABASE_ID,
     PATIENT_COLLECTION_ID,
     [Query.equal("userId", [userId]), Query.limit(1)]
   );
-  return result.documents[0] ?? null;
+  const doc = result.documents[0] ?? null;
+  if (!doc || !decrypt) return doc;
+  return decryptFields(doc, SENSITIVE_PATIENT_FIELDS);
 };

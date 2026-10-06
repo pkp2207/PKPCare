@@ -1,7 +1,14 @@
 "use server";
 
+import { headers } from "next/headers";
+
 import { toUserMessage } from "@/lib/appwrite/client";
 import * as patientRepo from "@/lib/appwrite/patient.repository";
+import { AdminAuthError } from "@/lib/auth/admin";
+import { assertPatientOrStaffOwns, PatientAuthError } from "@/lib/auth/patient";
+import { recordConsentGrants } from "@/lib/compliance/consent";
+import { auditSafe } from "@/lib/scheduling/audit";
+import { resolveDoctorByName } from "@/lib/scheduling/doctors";
 import { parseStringify } from "@/lib/utils";
 import {
   ALLOWED_ID_DOCUMENT_TYPES,
@@ -12,10 +19,11 @@ import {
 } from "@/lib/validation";
 import { Patient } from "@/types/appwrite.types";
 
-// SECURITY LIMITATION: there is no patient authentication yet; `userId` is the
-// only identity and is client-supplied. getUser/getPatient (and registerPatient)
-// therefore cannot be truly ownership-checked. Anyone who knows a userId can
-// read that user's record. Fix requires patient auth (session -> userId).
+// Ownership: every userId-scoped action calls assertPatientOrStaffOwns(). That
+// is a no-op for anonymous callers until PATIENT_AUTH_ENFORCED=true (patient
+// login UI ships in a later phase); until then `userId` is still effectively
+// client-supplied, exactly as before. Staff sessions are always recognised, so
+// staff reads are audited (`patient.read`).
 
 const fail = (error: string): { ok: false; error: string } => ({
   ok: false,
@@ -24,6 +32,21 @@ const fail = (error: string): { ok: false; error: string } => ({
 
 const firstIssue = (error: { issues: { message: string }[] }) =>
   error.issues[0]?.message ?? "Invalid input";
+
+const UNAUTHORIZED = "Unauthorized";
+
+const isAuthError = (error: unknown) =>
+  error instanceof PatientAuthError || error instanceof AdminAuthError;
+
+// Best effort: outside a request scope headers() throws.
+const clientIp = (): string | null => {
+  try {
+    const forwarded = headers().get("x-forwarded-for");
+    return forwarded ? (forwarded.split(",")[0]?.trim() ?? null) : null;
+  } catch {
+    return null;
+  }
+};
 
 // Detect the real file type from magic bytes; the client-declared MIME type
 // is untrusted.
@@ -97,10 +120,12 @@ export const getUser = async (userId: string): Promise<ActionResult<User>> => {
   try {
     const parsedId = IdSchema.safeParse(userId);
     if (!parsedId.success) return fail("Invalid user id");
+    await assertPatientOrStaffOwns(parsedId.data);
 
     const user = await patientRepo.getUser(parsedId.data);
     return { ok: true, data: parseStringify(user) };
   } catch (error) {
+    if (isAuthError(error)) return fail(UNAUTHORIZED);
     console.error("An error occurred while retrieving the user details:", error);
     return fail(toUserMessage(error, "User not found"));
   }
@@ -121,10 +146,30 @@ export const registerPatient = async (
     const file = await validateIdentificationFile(identificationDocument);
     if (!file.ok) return file;
 
+    const access = await assertPatientOrStaffOwns(p.userId);
+
+    const physician = await resolveDoctorByName(p.primaryPhysician);
+    if (!physician) return fail("Select a valid doctor");
+
     // The user must exist, and must not already have a patient record.
     await patientRepo.getUser(p.userId);
-    const existing = await patientRepo.getPatientByUserId(p.userId);
+    const existing = await patientRepo.getPatientByUserId(p.userId, {
+      decrypt: false,
+    });
     if (existing) return fail("This user is already registered as a patient");
+
+    // Consent is recorded BEFORE the patient document exists: if this throws,
+    // nothing was created, so a retry is not blocked by the "already
+    // registered" check above. (Throws on failure by contract.)
+    await recordConsentGrants({
+      userId: p.userId,
+      grants: {
+        treatment: p.treatmentConsent,
+        disclosure: p.disclosureConsent,
+        privacy: p.privacyConsent,
+      },
+      ip: clientIp(),
+    });
 
     let documentId: string | null = null;
     let documentUrl: string | null = null;
@@ -166,8 +211,18 @@ export const registerPatient = async (
       disclosureConsent: p.disclosureConsent,
     });
 
+    auditSafe({
+      actorId: access.staff?.userId ?? p.userId,
+      actorRole: access.staff?.role ?? "patient",
+      action: "patient.register",
+      resource: "patient",
+      resourceId: String(newPatient.$id),
+    });
+
     return { ok: true, data: parseStringify(newPatient) };
   } catch (error) {
+    if (isAuthError(error)) return fail(UNAUTHORIZED);
+    // Never log the params or documents: they contain PHI.
     console.error("An error occurred while creating a new patient:", error);
 
     // Don't leave an orphaned upload behind (best effort).
@@ -193,10 +248,22 @@ export const getPatient = async (
   try {
     const parsedId = IdSchema.safeParse(userId);
     if (!parsedId.success) return fail("Invalid user id");
+    const access = await assertPatientOrStaffOwns(parsedId.data);
 
     const patient = await patientRepo.getPatientByUserId(parsedId.data);
+
+    if (access.staff) {
+      auditSafe({
+        actorId: access.staff.userId,
+        actorRole: access.staff.role,
+        action: "patient.read",
+        resource: "patient",
+        resourceId: patient ? String(patient.$id) : undefined,
+      });
+    }
     return { ok: true, data: parseStringify(patient) };
   } catch (error) {
+    if (isAuthError(error)) return fail(UNAUTHORIZED);
     console.error(
       "An error occurred while retrieving the patient details:",
       error

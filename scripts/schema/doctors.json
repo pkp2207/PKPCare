@@ -1,0 +1,23 @@
+{
+  "id": "doctors",
+  "name": "Doctors",
+  "documentSecurity": false,
+  "permissions": [],
+  "attributes": [
+    { "key": "name", "type": "string", "size": 100, "required": true },
+    { "key": "specialty", "type": "string", "size": 100, "required": true },
+    { "key": "image", "type": "string", "size": 500, "required": true },
+    { "key": "email", "type": "string", "size": 200, "required": false },
+    { "key": "staffUserId", "type": "string", "size": 36, "required": false },
+    { "key": "active", "type": "boolean", "required": false, "default": true },
+    { "key": "slotMinutes", "type": "integer", "required": false, "min": 5, "max": 240, "default": 30 },
+    { "key": "timezone", "type": "string", "size": 64, "required": false, "default": "UTC" },
+    { "key": "weeklyHours", "type": "string", "size": 4000, "required": false },
+    { "key": "timeOff", "type": "string", "size": 16000, "required": false, "default": "[]" }
+  ],
+  "indexes": [
+    { "key": "idx_name", "type": "key", "attributes": ["name"], "orders": ["ASC"] },
+    { "key": "idx_active_name", "type": "key", "attributes": ["active", "name"], "orders": ["ASC", "ASC"] },
+    { "key": "uniq_staffUserId", "type": "unique", "attributes": ["staffUserId"], "orders": ["ASC"] }
+  ]
+}

@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AvailabilitySchema,
   CancelAppointmentSchema,
+  CancelMyAppointmentSchema,
   CreateAppointmentSchema,
+  CreateAppointmentServerSchema,
   getAppointmentSchema,
+  JoinWaitlistSchema,
   PatientFormValidation,
+  PhysicianSchema,
+  RescheduleAppointmentSchema,
   ScheduleAppointmentSchema,
+  UpsertDoctorSchema,
   UserFormValidation,
+  WeeklyHoursSchema,
 } from "@/lib/validation";
 
 const validUser = {
@@ -259,5 +267,97 @@ describe("getAppointmentSchema", () => {
       schema.safeParse({ ...validAppointment, cancellationReason: "No show" })
         .success
     ).toBe(true);
+  });
+});
+
+describe("CreateAppointmentServerSchema", () => {
+  const common = { userId: "u1", patient: "p1", reason: "Checkup" };
+
+  it("accepts the legacy shape (name + schedule) and coerces dates", () => {
+    const r = CreateAppointmentServerSchema.safeParse({
+      ...common,
+      primaryPhysician: "John Green",
+      schedule: "2026-12-01T10:00:00.000Z",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.schedule).toBeInstanceOf(Date);
+      expect(r.data.visitType).toBe("in_person");
+    }
+  });
+
+  it("accepts the new shape (doctorId + slotStart) and visit type", () => {
+    const r = CreateAppointmentServerSchema.safeParse({
+      ...common,
+      doctorId: "doc1",
+      slotStart: "2026-12-01T10:00:00.000Z",
+      visitType: "video",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.visitType).toBe("video");
+  });
+
+  it("requires one complete pair", () => {
+    expect(CreateAppointmentServerSchema.safeParse(common).success).toBe(false);
+    expect(CreateAppointmentServerSchema.safeParse({ ...common, doctorId: "doc1" }).success).toBe(false);
+    expect(CreateAppointmentServerSchema.safeParse({ ...common, schedule: "2026-12-01T10:00:00Z" }).success).toBe(false);
+  });
+
+  it("rejects bad ids, visit types, dates and reasons", () => {
+    const ok = { ...common, doctorId: "doc1", slotStart: "2026-12-01T10:00:00Z" };
+    expect(CreateAppointmentServerSchema.safeParse({ ...ok, doctorId: "../etc" }).success).toBe(false);
+    expect(CreateAppointmentServerSchema.safeParse({ ...ok, visitType: "teleport" }).success).toBe(false);
+    expect(CreateAppointmentServerSchema.safeParse({ ...ok, slotStart: "soon" }).success).toBe(false);
+    expect(CreateAppointmentServerSchema.safeParse({ ...ok, reason: "x" }).success).toBe(false);
+  });
+});
+
+describe("PhysicianSchema", () => {
+  it("checks format only (existence is resolved against the doctors collection)", () => {
+    expect(PhysicianSchema.safeParse("Some New Doctor").success).toBe(true);
+    expect(PhysicianSchema.safeParse("D").success).toBe(false);
+    expect(PhysicianSchema.safeParse("x".repeat(101)).success).toBe(false);
+  });
+});
+
+describe("scheduling schemas", () => {
+  it("AvailabilitySchema caps the window at 14 days and requires from < to", () => {
+    const base = { doctorId: "doc1", from: "2026-10-08T00:00:00Z" };
+    expect(AvailabilitySchema.safeParse({ ...base, to: "2026-10-22T00:00:00Z" }).success).toBe(true);
+    expect(AvailabilitySchema.safeParse({ ...base, to: "2026-10-22T00:00:01Z" }).success).toBe(false);
+    expect(AvailabilitySchema.safeParse({ ...base, to: "2026-10-08T00:00:00Z" }).success).toBe(false);
+    expect(AvailabilitySchema.safeParse({ ...base, to: "nope" }).success).toBe(false);
+  });
+
+  it("WeeklyHoursSchema validates HH:MM, order and overlap", () => {
+    expect(WeeklyHoursSchema.safeParse({ mon: [["09:00", "13:00"], ["14:00", "17:00"]], sun: [] }).success).toBe(true);
+    expect(WeeklyHoursSchema.safeParse({ mon: [["09:00", "24:00"]] }).success).toBe(true);
+    expect(WeeklyHoursSchema.safeParse({ mon: [["17:00", "09:00"]] }).success).toBe(false);
+    expect(WeeklyHoursSchema.safeParse({ mon: [["09:00", "13:00"], ["12:00", "14:00"]] }).success).toBe(false);
+    expect(WeeklyHoursSchema.safeParse({ mon: [["9:00", "13:00"]] }).success).toBe(false);
+    expect(WeeklyHoursSchema.safeParse({ someday: [["09:00", "10:00"]] }).success).toBe(false);
+  });
+
+  it("UpsertDoctorSchema validates timezone and slot length", () => {
+    const base = { name: "Dr Who", specialty: "GP", image: "/a.png" };
+    expect(UpsertDoctorSchema.safeParse({ ...base, timezone: "Europe/London", slotMinutes: 15 }).success).toBe(true);
+    expect(UpsertDoctorSchema.safeParse({ ...base, timezone: "Gallifrey/Citadel" }).success).toBe(false);
+    expect(UpsertDoctorSchema.safeParse({ ...base, slotMinutes: 3 }).success).toBe(false);
+    expect(UpsertDoctorSchema.safeParse({ ...base, slotMinutes: 12.5 }).success).toBe(false);
+  });
+
+  it("cancel/reschedule schemas", () => {
+    expect(CancelMyAppointmentSchema.safeParse({ appointmentId: "a1", userId: "u1", reason: "no" }).success).toBe(true);
+    expect(CancelMyAppointmentSchema.safeParse({ appointmentId: "a1", userId: "u1", reason: "n" }).success).toBe(false);
+    expect(RescheduleAppointmentSchema.safeParse({ appointmentId: "a1", userId: "u1", newStart: "2026-12-01T10:00:00Z" }).success).toBe(true);
+    expect(RescheduleAppointmentSchema.safeParse({ appointmentId: "a1", userId: "u1", newStart: "whenever" }).success).toBe(false);
+  });
+
+  it("JoinWaitlistSchema needs earliest < latest within the horizon", () => {
+    const soon = Date.now() + 86_400_000;
+    const base = { userId: "u1", patientId: "p1", doctorId: "d1" };
+    expect(JoinWaitlistSchema.safeParse({ ...base, earliest: new Date(soon), latest: new Date(soon + 86_400_000) }).success).toBe(true);
+    expect(JoinWaitlistSchema.safeParse({ ...base, earliest: new Date(soon + 86_400_000), latest: new Date(soon) }).success).toBe(false);
+    expect(JoinWaitlistSchema.safeParse({ ...base, earliest: new Date(soon), latest: new Date(soon + 200 * 86_400_000) }).success).toBe(false);
   });
 });

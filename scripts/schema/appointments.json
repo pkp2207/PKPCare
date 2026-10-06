@@ -1,0 +1,20 @@
+{
+  "idFromEnv": "APPOINTMENT_COLLECTION_ID",
+  "name": "Appointments",
+  "existing": true,
+  "attributes": [
+    { "key": "doctorId", "type": "string", "size": 36, "required": false },
+    { "key": "slotId", "type": "string", "size": 36, "required": false },
+    { "key": "visitType", "type": "enum", "elements": ["in_person", "video"], "required": false, "default": "in_person" },
+    { "key": "reminderSentAt", "type": "datetime", "required": false },
+    { "key": "cancelledBy", "type": "enum", "elements": ["patient", "staff", "system"], "required": false }
+  ],
+  "indexes": [
+    { "key": "idx_schedule", "type": "key", "attributes": ["schedule"], "orders": ["ASC"] },
+    { "key": "idx_physician_schedule", "type": "key", "attributes": ["primaryPhysician", "schedule"], "orders": ["ASC", "ASC"] },
+    { "key": "idx_status", "type": "key", "attributes": ["status"], "orders": ["ASC"] },
+    { "key": "idx_doctor_schedule", "type": "key", "attributes": ["doctorId", "schedule"], "orders": ["ASC", "ASC"] },
+    { "key": "idx_userId", "type": "key", "attributes": ["userId"], "orders": ["ASC"] },
+    { "key": "idx_slotId", "type": "key", "attributes": ["slotId"], "orders": ["ASC"] }
+  ]
+}

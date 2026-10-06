@@ -13,6 +13,9 @@ export type NewAppointmentData = {
   schedule: Date;
   status: Status;
   note?: string;
+  doctorId?: string;
+  slotId?: string;
+  visitType?: VisitType;
 };
 
 export type AppointmentUpdateData = {
@@ -20,24 +23,37 @@ export type AppointmentUpdateData = {
   schedule?: Date;
   status?: Status;
   cancellationReason?: string | null;
+  doctorId?: string | null;
+  slotId?: string | null;
+  visitType?: VisitType;
+  cancelledBy?: "patient" | "staff" | "system";
+  reminderSentAt?: string | null;
 };
 
-export const createAppointmentDocument = async (data: NewAppointmentData) => {
+/** Pre-generate an id so a slot document can reference its appointment. */
+export const generateAppointmentId = () => ID.unique();
+
+export const createAppointmentDocument = async (
+  data: NewAppointmentData,
+  id: string = ID.unique()
+) => {
   const { DATABASE_ID, APPOINTMENT_COLLECTION_ID } = getEnv();
   return getClients().databases.createDocument(
     DATABASE_ID,
     APPOINTMENT_COLLECTION_ID,
-    ID.unique(),
+    id,
     data
   );
 };
 
 export const listAppointments = async ({
   status,
+  doctorId,
   limit,
   offset,
 }: {
   status?: Status;
+  doctorId?: string;
   limit: number;
   offset: number;
 }) => {
@@ -48,7 +64,8 @@ export const listAppointments = async ({
     Query.offset(offset),
   ];
   if (status) queries.push(Query.equal("status", [status]));
-  return getClients().databases.listDocuments(
+  if (doctorId) queries.push(Query.equal("doctorId", [doctorId]));
+  return getClients().databases.listDocuments<Appointment>(
     DATABASE_ID,
     APPOINTMENT_COLLECTION_ID,
     queries
@@ -56,10 +73,14 @@ export const listAppointments = async ({
 };
 
 /** Count via Appwrite `total` (limit 1 keeps the payload tiny). */
-export const countAppointments = async (status?: Status): Promise<number> => {
+export const countAppointments = async (
+  status?: Status,
+  doctorId?: string
+): Promise<number> => {
   const { DATABASE_ID, APPOINTMENT_COLLECTION_ID } = getEnv();
   const queries = [Query.limit(1)];
   if (status) queries.push(Query.equal("status", [status]));
+  if (doctorId) queries.push(Query.equal("doctorId", [doctorId]));
   const result = await getClients().databases.listDocuments(
     DATABASE_ID,
     APPOINTMENT_COLLECTION_ID,
@@ -68,10 +89,26 @@ export const countAppointments = async (status?: Status): Promise<number> => {
   return result.total;
 };
 
+/** A user's own appointments, soonest first. */
+export const listAppointmentsByUser = async (userId: string, limit = 50) => {
+  const { DATABASE_ID, APPOINTMENT_COLLECTION_ID } = getEnv();
+  const result = await getClients().databases.listDocuments<Appointment>(
+    DATABASE_ID,
+    APPOINTMENT_COLLECTION_ID,
+    [
+      Query.equal("userId", [userId]),
+      Query.orderDesc("schedule"),
+      Query.limit(limit),
+    ]
+  );
+  return result.documents;
+};
+
 /**
  * Returns a non-cancelled appointment for the physician whose schedule lies
  * strictly between `after` and `before`, or null. `excludeId` skips the
- * appointment being rescheduled.
+ * appointment being rescheduled. Defence in depth next to the atomic slot
+ * document, and the only guard for legacy appointments that have no slotId.
  */
 export const findConflictingAppointment = async ({
   primaryPhysician,
@@ -99,6 +136,31 @@ export const findConflictingAppointment = async ({
     queries
   );
   return result.documents[0] ?? null;
+};
+
+/**
+ * Schedules (ISO) of a physician's non-cancelled appointments in
+ * [from, to). Used so availability also hides legacy bookings that have no
+ * slot document.
+ */
+export const listActiveScheduleTimes = async (
+  primaryPhysician: string,
+  from: Date,
+  to: Date
+): Promise<string[]> => {
+  const { DATABASE_ID, APPOINTMENT_COLLECTION_ID } = getEnv();
+  const result = await getClients().databases.listDocuments<Appointment>(
+    DATABASE_ID,
+    APPOINTMENT_COLLECTION_ID,
+    [
+      Query.equal("primaryPhysician", [primaryPhysician]),
+      Query.notEqual("status", "cancelled"),
+      Query.greaterThanEqual("schedule", from.toISOString()),
+      Query.lessThan("schedule", to.toISOString()),
+      Query.limit(100),
+    ]
+  );
+  return result.documents.map((doc) => String(doc.schedule));
 };
 
 export const updateAppointmentDocument = async (

@@ -1,0 +1,17 @@
+{
+  "id": "slots",
+  "name": "Slots",
+  "documentSecurity": false,
+  "permissions": [],
+  "attributes": [
+    { "key": "doctorId", "type": "string", "size": 36, "required": true },
+    { "key": "start", "type": "datetime", "required": true },
+    { "key": "end", "type": "datetime", "required": true },
+    { "key": "appointmentId", "type": "string", "size": 36, "required": false },
+    { "key": "status", "type": "enum", "elements": ["booked", "blocked"], "required": true }
+  ],
+  "indexes": [
+    { "key": "uniq_doctor_start", "type": "unique", "attributes": ["doctorId", "start"], "orders": ["ASC", "ASC"] },
+    { "key": "idx_appointmentId", "type": "key", "attributes": ["appointmentId"], "orders": ["ASC"] }
+  ]
+}

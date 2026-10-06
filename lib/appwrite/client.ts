@@ -41,3 +41,12 @@ export const toUserMessage = (error: unknown, notFound = "Not found") => {
   if (code === 409) return "This record already exists";
   return "Something went wrong. Please try again.";
 };
+
+const errorCode = (error: unknown) =>
+  (error as { code?: number } | null)?.code;
+
+/** HTTP 409: document id / unique index already taken. */
+export const isConflict = (error: unknown) => errorCode(error) === 409;
+
+/** HTTP 404: document, collection or database does not exist. */
+export const isNotFound = (error: unknown) => errorCode(error) === 404;

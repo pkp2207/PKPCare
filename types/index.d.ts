@@ -43,14 +43,82 @@ declare interface RegisterUserParams extends CreateUserParams {
   disclosureConsent: boolean;
 }
 
+declare type VisitType = "in_person" | "video";
+
+// Legacy shape: `primaryPhysician` (doctor name) + `schedule`. New shape:
+// `doctorId` + `slotStart` (atomic booking, see docs/scheduling.md). At least
+// one of the two pairs is required; the new pair wins when both are present.
 declare type CreateAppointmentParams = {
   userId: string;
   patient: string;
-  primaryPhysician: string;
+  primaryPhysician?: string;
   reason: string;
-  schedule: Date;
+  schedule?: Date;
   note: string | undefined;
+  doctorId?: string;
+  slotStart?: Date | string;
+  visitType?: VisitType;
 };
+
+declare type CancelMyAppointmentParams = {
+  appointmentId: string;
+  userId: string;
+  reason: string;
+};
+
+declare type RescheduleAppointmentParams = {
+  appointmentId: string;
+  userId: string;
+  newStart: Date | string;
+};
+
+declare type AvailabilityParams = {
+  doctorId: string;
+  from: Date | string;
+  to: Date | string;
+};
+
+declare type AvailabilitySlot = { start: string; end: string };
+
+// Public doctor projection: never includes email / staffUserId.
+declare type PublicDoctor = {
+  id: string;
+  name: string;
+  specialty: string;
+  image: string;
+  slotMinutes: number;
+  timezone: string;
+  // True when served from the static fallback list (doctors collection not set up).
+  legacy?: boolean;
+};
+
+declare type WeekdayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+declare type WeeklyHours = Partial<Record<WeekdayKey, [string, string][]>>;
+declare type TimeOffEntry = { start: string; end: string; reason?: string };
+
+declare type UpsertDoctorParams = {
+  id?: string;
+  name: string;
+  specialty: string;
+  image: string;
+  email?: string | null;
+  staffUserId?: string | null;
+  active?: boolean;
+  slotMinutes?: number;
+  timezone?: string;
+  weeklyHours?: WeeklyHours;
+  timeOff?: TimeOffEntry[];
+};
+
+declare type JoinWaitlistParams = {
+  userId: string;
+  patientId: string;
+  doctorId: string;
+  earliest: Date | string;
+  latest: Date | string;
+};
+
+declare type LeaveWaitlistParams = { entryId: string; userId: string };
 
 // Server actions never throw to the client; every action resolves to this.
 declare type ActionResult<T = null> =
