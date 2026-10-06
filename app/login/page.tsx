@@ -6,6 +6,7 @@ import { safeNextPath } from "@/lib/auth/redirect";
 
 export const metadata: Metadata = { title: "Sign in | PKPCare" };
 
+// Redirect target is validated below (safeNextPath), never trusted raw.
 const LoginPage = ({ searchParams }: SearchParamProps) => {
   // Open-redirect guard: only same-origin relative paths survive.
   const next = safeNextPath(searchParams?.next, "");

@@ -17,15 +17,17 @@ export const ErrorState = ({
   linkLabel = "Back to home",
 }: ErrorStateProps) => {
   return (
-    <div
-      role="alert"
-      className="flex h-screen max-h-screen flex-col items-center justify-center gap-6 px-[5%] text-center"
+    <main
+      id="main"
+      className="flex min-h-screen flex-col items-center justify-center gap-6 px-[5%] text-center"
     >
-      <h1 className="header">{title}</h1>
-      <p className="text-dark-700">{message}</p>
+      <div role="alert" className="flex flex-col items-center gap-6">
+        <h1 className="header">{title}</h1>
+        <p className="text-dark-700">{message}</p>
+      </div>
       <Button variant="outline" className="shad-primary-btn" asChild>
         <Link href={href}>{linkLabel}</Link>
       </Button>
-    </div>
+    </main>
   );
 };

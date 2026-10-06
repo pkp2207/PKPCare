@@ -3,17 +3,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as Sentry from "@sentry/nextjs";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { Dispatch, SetStateAction, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { BookingForm } from "@/components/portal/BookingForm";
 import { SelectItem } from "@/components/ui/select";
 import { Doctors } from "@/constants";
-import {
-  createAppointment,
-  updateAppointment,
-} from "@/lib/actions/appointment.actions";
+import { updateAppointment } from "@/lib/actions/appointment.actions";
+import { listDoctors } from "@/lib/actions/doctor.actions";
 import { getAppointmentSchema } from "@/lib/validation";
 import { Appointment } from "@/types/appwrite.types";
 
@@ -31,24 +29,57 @@ const getDefaultSchedule = () => {
   return date;
 };
 
-export const AppointmentForm = ({
-  userId,
-  patientId,
-  type = "create",
-  appointment,
-  setOpen,
-}: {
+type AppointmentFormProps = {
   userId: string;
   patientId: string;
   type: "create" | "schedule" | "cancel";
   appointment?: Appointment;
   setOpen?: Dispatch<SetStateAction<boolean>>;
-}) => {
-  const router = useRouter();
+};
+
+/**
+ * Props are unchanged (the admin AppointmentModal depends on them). Patients
+ * booking (`type="create"`) get the slot-based BookingForm; staff scheduling and
+ * cancelling keep the original form below.
+ */
+export const AppointmentForm = (props: AppointmentFormProps) => {
+  if (props.type === "create") {
+    return <BookingForm userId={props.userId} patientId={props.patientId} />;
+  }
+  return <StaffAppointmentForm {...props} />;
+};
+
+const StaffAppointmentForm = ({
+  userId,
+  type,
+  appointment,
+  setOpen,
+}: AppointmentFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Fixed for the lifetime of the form so the picker's bounds don't drift.
   const [minDate] = useState(() => new Date());
+  // Real doctors from the doctors collection; the static list is the fallback
+  // (collection not set up yet, or the request failed).
+  const [doctorOptions, setDoctorOptions] = useState<
+    { name: string; image: string }[]
+  >(Doctors);
+
+  useEffect(() => {
+    let cancelled = false;
+    listDoctors()
+      .then((result) => {
+        if (!cancelled && result.ok && result.data.length > 0) {
+          setDoctorOptions(
+            result.data.map(({ name, image }) => ({ name, image }))
+          );
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const AppointmentFormValidation = getAppointmentSchema(type);
 
@@ -72,61 +103,30 @@ export const AppointmentForm = ({
     setIsLoading(true);
 
     try {
-      if (type === "create") {
-        if (!patientId) {
-          setError(
-            "We couldn't find your patient record. Please register first."
-          );
-          return;
-        }
+      if (!appointment?.$id) {
+        setError("We couldn't find this appointment. Please refresh the page.");
+        return;
+      }
 
-        // Status is set to "pending" by the server.
-        const result = await createAppointment({
-          userId,
-          patient: patientId,
+      // The server derives the resulting status from `type`.
+      const result = await updateAppointment({
+        userId,
+        appointmentId: appointment.$id,
+        appointment: {
           primaryPhysician: values.primaryPhysician,
           schedule: new Date(values.schedule),
-          reason: values.reason ?? "",
-          note: values.note,
-        });
+          cancellationReason: values.cancellationReason,
+        },
+        type,
+      });
 
-        if (!result.ok) {
-          setError(result.error);
-          return;
-        }
-
-        form.reset();
-        router.push(
-          `/patients/${userId}/new-appointment/success?appointmentId=${result.data.$id}`
-        );
-      } else {
-        if (!appointment?.$id) {
-          setError(
-            "We couldn't find this appointment. Please refresh the page."
-          );
-          return;
-        }
-
-        // The server derives the resulting status from `type`.
-        const result = await updateAppointment({
-          userId,
-          appointmentId: appointment.$id,
-          appointment: {
-            primaryPhysician: values.primaryPhysician,
-            schedule: new Date(values.schedule),
-            cancellationReason: values.cancellationReason,
-          },
-          type,
-        });
-
-        if (!result.ok) {
-          setError(result.error);
-          return;
-        }
-
-        setOpen?.(false);
-        form.reset();
+      if (!result.ok) {
+        setError(result.error);
+        return;
       }
+
+      setOpen?.(false);
+      form.reset();
     } catch (err) {
       Sentry.captureException(err);
       setError("Something went wrong. Please try again.");
@@ -144,21 +144,12 @@ export const AppointmentForm = ({
       buttonLabel = "Schedule Appointment";
       break;
     default:
-      buttonLabel = "Submit Appointment";
+      buttonLabel = "Schedule Appointment";
   }
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 space-y-6">
-        {type === "create" && (
-          <section className="mb-12 space-y-4">
-            <h1 className="header">New Appointment</h1>
-            <p className="text-dark-700">
-              Request a new appointment in 10 seconds.
-            </p>
-          </section>
-        )}
-
         {type !== "cancel" && (
           <>
             <CustomFormField
@@ -168,7 +159,7 @@ export const AppointmentForm = ({
               label="Doctor"
               placeholder="Select a doctor"
             >
-              {Doctors.map((doctor, i) => (
+              {doctorOptions.map((doctor, i) => (
                 <SelectItem key={doctor.name + i} value={doctor.name}>
                   <div className="flex cursor-pointer items-center gap-2">
                     <Image
@@ -194,9 +185,7 @@ export const AppointmentForm = ({
               dateFormat="MM/dd/yyyy  -  h:mm aa"
             />
 
-            <div
-              className={`flex flex-col gap-6  ${type === "create" && "xl:flex-row"}`}
-            >
+            <div className="flex flex-col gap-6">
               <CustomFormField
                 fieldType={FormFieldType.TEXTAREA}
                 control={form.control}

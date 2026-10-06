@@ -1,10 +1,12 @@
 "use server";
 
 import { headers } from "next/headers";
+import { Query } from "node-appwrite";
 
-import { toUserMessage } from "@/lib/appwrite/client";
+import { getClients, toUserMessage } from "@/lib/appwrite/client";
 import * as patientRepo from "@/lib/appwrite/patient.repository";
 import { AdminAuthError } from "@/lib/auth/admin";
+import { isPatientAuthEnforced } from "@/lib/auth/config";
 import { assertPatientOrStaffOwns, PatientAuthError } from "@/lib/auth/patient";
 import { recordConsentGrants } from "@/lib/compliance/consent";
 import { auditSafe } from "@/lib/scheduling/audit";
@@ -34,6 +36,9 @@ const firstIssue = (error: { issues: { message: string }[] }) =>
   error.issues[0]?.message ?? "Invalid input";
 
 const UNAUTHORIZED = "Unauthorized";
+
+const SIGN_IN_INSTEAD =
+  "We could not start registration with these details. If you already have an account, please sign in.";
 
 const isAuthError = (error: unknown) =>
   error instanceof PatientAuthError || error instanceof AdminAuthError;
@@ -108,7 +113,32 @@ export const createUser = async (
     if (!parsed.success) return fail(firstIssue(parsed.error));
 
     const { name, email, phone } = parsed.data;
+
+    // IDOR guard. patientRepo.createUser() returns the EXISTING user on a
+    // duplicate email, and this action is callable by anyone. Once patient
+    // identity is enforced that would hand out another person's userId, so a
+    // duplicate gets the same generic "sign in" answer as any other failure to
+    // create. (Flag off: the old anonymous flow is kept on purpose.) The
+    // enforced UI uses startPatientRegistration instead, which never returns ids.
+    if (isPatientAuthEnforced()) {
+      const existing = await getClients().users.list([
+        Query.equal("email", [email.trim().toLowerCase()]),
+        Query.limit(1),
+      ]);
+      if (existing.users.length > 0) return fail(SIGN_IN_INSTEAD);
+    }
+
     const newUser = await patientRepo.createUser({ name, email, phone });
+
+    // Race backstop: if a duplicate slipped in between the check above and the
+    // create, the repo returned the pre-existing (old) user. Never hand it out.
+    if (
+      isPatientAuthEnforced() &&
+      (!newUser || Date.now() - Date.parse(String(newUser.$createdAt)) > 60_000)
+    ) {
+      return fail(SIGN_IN_INSTEAD);
+    }
+
     return { ok: true, data: parseStringify(newUser) };
   } catch (error) {
     console.error("An error occurred while creating a new user:", error);

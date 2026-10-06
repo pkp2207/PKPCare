@@ -20,7 +20,7 @@ export const AuthLayout = ({
           className="mb-8"
         />
 
-        <main className="flex-1">{children}</main>
+        <main id="main" className="flex-1">{children}</main>
 
         <div className="text-14-regular mt-20 flex justify-between">
           <p className="justify-items-end text-dark-600 xl:text-left">

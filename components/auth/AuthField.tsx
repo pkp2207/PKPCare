@@ -8,6 +8,8 @@ type AuthFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "id"> & {
   label: string;
   iconSrc?: string;
   invalid?: boolean;
+  /** id of an element describing an error for this field. */
+  describedBy?: string;
 };
 
 // Plain labelled input in the same visual style as CustomFormField (which has no
@@ -17,6 +19,7 @@ export const AuthField = ({
   label,
   iconSrc,
   invalid,
+  describedBy,
   ...inputProps
 }: AuthFieldProps) => (
   <div className="flex flex-col gap-2">
@@ -37,6 +40,7 @@ export const AuthField = ({
       <Input
         id={id}
         aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         className="shad-input border-0"
         {...inputProps}
       />
