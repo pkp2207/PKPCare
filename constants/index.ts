@@ -120,7 +120,9 @@ export const AVAILABILITY_MAX_WINDOW_DAYS = 14;
 export const ORPHAN_SLOT_GRACE_MINUTES = 2;
 
 export const MAX_ACTIVE_WAITLIST_ENTRIES = 10;
-export const MAX_TIME_OFF_ENTRIES = 100;
+// Sized so the JSON (worst case ~300 chars per entry) fits the 8000-char `timeOff`
+// attribute; Appwrite rejects collections whose total row width is too large.
+export const MAX_TIME_OFF_ENTRIES = 25;
 
 export const VISIT_TYPES = ["in_person", "video"] as const;
 

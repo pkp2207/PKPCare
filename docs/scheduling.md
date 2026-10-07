@@ -25,7 +25,7 @@ Fixed collection ids (constants in `constants/index.ts`), created by
 | `slotMinutes` | integer    | 5..240, default 30 |
 | `timezone`    | string 64  | IANA name, default `UTC`. Working hours are wall-clock in this zone. |
 | `weeklyHours` | string 4000 | JSON: `{"mon":[["09:00","13:00"],["14:00","17:00"]],"sat":[]}`. Keys `mon..sun`; `"24:00"` is allowed as an end. No intervals crossing midnight. |
-| `timeOff`     | string 16000 | JSON array of `{start,end,reason?}` (ISO instants), default `[]`. Max 100 entries; entries that ended more than 30 days ago are pruned on write. |
+| `timeOff`     | string 8000 | JSON array of `{start,end,reason?}` (ISO instants), default `[]`. Max 25 entries; entries that ended more than 30 days ago are pruned on write. |
 
 ### `slots`
 

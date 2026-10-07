@@ -13,7 +13,7 @@
     { "key": "slotMinutes", "type": "integer", "required": false, "min": 5, "max": 240, "default": 30 },
     { "key": "timezone", "type": "string", "size": 64, "required": false, "default": "UTC" },
     { "key": "weeklyHours", "type": "string", "size": 4000, "required": false },
-    { "key": "timeOff", "type": "string", "size": 16000, "required": false, "default": "[]" }
+    { "key": "timeOff", "type": "string", "size": 8000, "required": false, "default": "[]" }
   ],
   "indexes": [
     { "key": "idx_name", "type": "key", "attributes": ["name"], "orders": ["ASC"] },
