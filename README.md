@@ -29,9 +29,8 @@ rest, access is audited, and consent, data export and erasure are built in.
 Optional modules (all off until configured): SMS/email/WhatsApp reminders, booking
 deposits, video visits, a read-only FHIR R4 API, and opt-in AI assistance.
 
-> **Status:** the backend journey (register, book, reschedule, cancel, export, erase) is
-> covered by a live integration test against Appwrite. The UI has not had a browser or
-> accessibility audit yet, and several modules (email/OTP login, messaging, payments,
+> **Status:** the patient journey is covered by a live Appwrite integration test and by
+> Playwright browser tests with automated accessibility checks. Several modules (email/OTP login, messaging, payments,
 > FHIR, telehealth, AI) have only been tested with mocks. See
 > [Go-Live Checklist](#go-live).
 
@@ -157,6 +156,7 @@ Then set `ALLOW_LEGACY_ADMIN_PASSKEY=false`, run `npm run dev`, open
 | `npm test` | Unit tests once (Vitest). No network, no `.env` |
 | `npm run test:watch` | Unit tests in watch mode |
 | `npm run test:live` | Live Appwrite integration suite. Needs `.env`; **non-production projects only** |
+| `npm run test:e2e` | Playwright browser tests (public pages, admin console, full patient journey, axe accessibility). Builds the app into `.next-e2e` on port 3100; needs `.env`; **non-production projects only** |
 
 ## <a name="testing">🧪 Testing</a>
 
@@ -166,7 +166,14 @@ Then set `ALLOW_LEGACY_ADMIN_PASSKEY=false`, run `npm run dev`, open
   notifications so nothing is sent: `npm run test:live`.
 - **CI** (`.github/workflows/ci.yml`) runs lint, typecheck, tests and build on pushes and
   pull requests to `main`, using dummy env values.
-- Not yet covered: browser end-to-end tests (Playwright) and an accessibility audit.
+- **Browser E2E** (`tests/e2e/`, Playwright + axe) run a production build on port 3100 (output in
+  `.next-e2e`, so a running `npm run dev` is unaffected) with notifications disabled. They check
+  that pages are actually styled, walk a test patient through registration, booking, reschedule
+  and cancel, exercise the admin console with role restrictions, and fail on serious or critical
+  WCAG 2.x A/AA violations. The test patient and its records are deleted afterwards. First run:
+  `npx playwright install chromium`.
+- Automated accessibility scans catch only part of the problems; keyboard-only and screen-reader
+  checks are still manual. E2E and live tests are not run in CI (they need Appwrite credentials).
 
 ## <a name="security">🔒 Security Notes</a>
 

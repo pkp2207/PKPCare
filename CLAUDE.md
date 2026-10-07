@@ -14,6 +14,7 @@ npm run lint           # next lint     (must be clean)
 npm test               # unit tests, mocked, no network/.env
 NEXT_DIST_DIR=.next-build npm run build   # verification build; needs NEXT_PUBLIC_ENDPOINT and NEXT_PUBLIC_BUCKET_ID set to anything
 npm run test:live      # REAL Appwrite from .env; non-prod only; creates and deletes records
+npm run test:e2e       # Playwright + axe; prod build in .next-e2e on :3100; needs the sandbox lifted (.env, browser, Appwrite)
 node --env-file=.env scripts/appwrite-setup.mjs [--dry-run] [--seed-doctors]
 node --env-file=.env scripts/check-patient-schema.mjs [--apply]
 node --env-file=.env scripts/create-staff.mjs --email .. --name .. --role admin|frontdesk|doctor
@@ -90,7 +91,7 @@ running**: it overwrites the dev server's artifacts and the UI loses all CSS. Al
 
 ## Not done yet
 
-Browser end-to-end tests and accessibility audit, CSP, PWA/web push, i18n, Dockerfile, passkeys
+Manual keyboard/screen-reader accessibility pass, CSP, PWA/web push, i18n, Dockerfile, passkeys
 (WebAuthn), TOTP enrollment UI, password-change page, real-time admin updates (30s polling now),
 consent re-grant action, JaaS/JWT Jitsi provider, ABDM/payer integrations (interfaces only),
 Next 15/16 upgrade.
