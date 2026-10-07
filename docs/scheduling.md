@@ -229,14 +229,18 @@ ciphertext is `enc:v1:<keyId>:<iv>:<tag>:<ct>` = `56 + ceil(4n/3)` characters
 for an `n`-byte plaintext. Each encrypted string attribute must be at least
 that for its longest allowed value, e.g. for ASCII-dominant data:
 
-| field | max plaintext | min attribute size |
-|-------|---------------|--------------------|
-| `insurancePolicyNumber` | 50 | 128 |
-| `identificationNumber` | 100 | 200 |
-| `allergies`, `currentMedication`, `familyMedicalHistory`, `pastMedicalHistory` | 2000 | 2800 (10 800 if you must allow 4-byte characters) |
+| field | max plaintext (chars) | attribute size (worst case: 4 UTF-8 bytes/char) |
+|-------|-----------------------|--------------------------------------------------|
+| `insurancePolicyNumber` | 50 | 350 |
+| `identificationNumber` | 100 | 600 |
+| `allergies`, `currentMedication`, `familyMedicalHistory`, `pastMedicalHistory` | 2000 | 16382 (above Appwrite's varchar limit of 16381, so stored off-row as TEXT and cheap for the row-width limit) |
 
-Raise the sizes in the console (Appwrite allows increasing a string attribute's
-size) **before** enabling `FIELD_ENCRYPTION_KEY`, otherwise writes fail.
+Run `node --env-file=.env scripts/check-patient-schema.mjs` for a read-only report
+of the real sizes in your project, and add `--apply` to raise them (sizes only
+increase; the SDK's `updateStringAttribute` cannot resize, so the script uses the
+REST API). The row-width figure it prints is an estimate; Appwrite has the final say.
+
+Raise the sizes (script above, or the console) **before** enabling `FIELD_ENCRYPTION_KEY`, otherwise writes fail.
 Only string attributes can be encrypted (`birthDate` is a datetime and must
 stay out of the sensitive list), and encrypted fields cannot be searched or
 sorted. `registerPatient` records consent (`recordConsentGrants`) **before**
