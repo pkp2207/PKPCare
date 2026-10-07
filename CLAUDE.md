@@ -12,7 +12,7 @@ npm run dev            # dev server
 npm run typecheck      # tsc --noEmit  (must be clean)
 npm run lint           # next lint     (must be clean)
 npm test               # unit tests, mocked, no network/.env
-npm run build          # needs NEXT_PUBLIC_ENDPOINT and NEXT_PUBLIC_BUCKET_ID set to anything
+NEXT_DIST_DIR=.next-build npm run build   # verification build; needs NEXT_PUBLIC_ENDPOINT and NEXT_PUBLIC_BUCKET_ID set to anything
 npm run test:live      # REAL Appwrite from .env; non-prod only; creates and deletes records
 node --env-file=.env scripts/appwrite-setup.mjs [--dry-run] [--seed-doctors]
 node --env-file=.env scripts/check-patient-schema.mjs [--apply]
@@ -35,6 +35,10 @@ Before calling work done: typecheck, lint, `npm test`, and for route or auth cha
   have FIXED ids and are defined in `scripts/schema/*.json` (created by `appwrite-setup.mjs`).
 - Booking atomicity: a slot is a document with a deterministic id (`doctorId_startEpochMs`,
   hashed if needed); a 409 means "just taken". Do not replace it with query-then-insert.
+
+**Never run `next build` or `next start` into `.next` while the user may have `npm run dev`
+running**: it overwrites the dev server's artifacts and the UI loses all CSS. Always use
+`NEXT_DIST_DIR=.next-build` (and `npx next start` only with that dir), then delete `.next-build`.
 
 ## Conventions (follow these)
 

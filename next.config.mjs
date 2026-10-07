@@ -15,6 +15,9 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  // Verification builds use NEXT_DIST_DIR=.next-build so they never overwrite the
+  // dev server's .next folder (mixing the two breaks the dev server's CSS/chunks).
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   async headers() {
     return [
       {
