@@ -22,7 +22,8 @@ export const ui = {
   btnSm: "h-9 px-3",
   error: "text-14-regular text-red-400",
   dialog: "shad-dialog text-light-200 max-h-[90vh] overflow-y-auto",
-  tableWrap: "w-full overflow-x-auto rounded-lg border border-dark-400 shadow-lg",
+  tableWrap:
+    "w-full overflow-x-auto rounded-lg border border-dark-400 shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-green-500",
   th: "px-4 py-3 text-left text-12-semibold uppercase tracking-wide text-dark-700",
   td: "px-4 py-3 align-middle text-14-regular text-light-200",
 } as const;

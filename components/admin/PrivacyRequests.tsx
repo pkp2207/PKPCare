@@ -113,7 +113,7 @@ export function PrivacyRequests({ requests }: { requests: DeletionRequestWithNam
       <section aria-labelledby="resolved-h" className="space-y-3">
         <h2 id="resolved-h" className="sub-header">Resolved ({resolved.length})</h2>
         {resolved.length > 0 && (
-          <div className={ui.tableWrap}>
+          <div className={ui.tableWrap} role="region" aria-label="Deletion requests" tabIndex={0}>
             <table className="w-full min-w-[640px] text-sm">
               <caption className="sr-only">Resolved privacy requests</caption>
               <thead className="bg-dark-200">

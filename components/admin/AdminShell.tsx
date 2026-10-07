@@ -24,7 +24,7 @@ export function AdminShell({
     <div className="mx-auto flex max-w-7xl flex-col">
       <a
         href="#main-content"
-        className="sr-only z-50 rounded-md bg-green-500 px-4 py-2 font-semibold text-black focus:not-sr-only focus:absolute focus:left-4 focus:top-4"
+        className="sr-only z-50 rounded-md bg-green-500 font-semibold text-black focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:px-4 focus:py-2"
       >
         Skip to main content
       </a>

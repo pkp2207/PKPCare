@@ -24,7 +24,7 @@ function DataAlternative({
       <summary className={`${ui.hint} cursor-pointer rounded ${ui.focus}`}>
         View as table
       </summary>
-      <div className={`${ui.tableWrap} mt-2`}>
+      <div className={`${ui.tableWrap} mt-2`} role="region" aria-label={caption} tabIndex={0}>
         <table className="w-full text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead className="bg-dark-200">
@@ -113,7 +113,7 @@ export function HeatmapChart({ title, heatmap }: { title: string; heatmap: Heatm
       <p className={`${ui.hint} mb-3`}>
         Appointments by weekday and start hour ({timeZone}); cancelled excluded.
       </p>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" role="region" aria-label={`${title} chart`} tabIndex={0}>
         <div
           role="img"
           aria-label={`${title}. Use the table below for exact values.`}

@@ -37,7 +37,7 @@ export const PortalHeader = ({
     <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-dark-500 pb-4">
       <a
         href="#main"
-        className="sr-only rounded-md bg-green-500 px-4 py-2 text-white focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50"
+        className="sr-only rounded-md bg-green-500 text-white focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:px-4 focus:py-2"
       >
         Skip to main content
       </a>

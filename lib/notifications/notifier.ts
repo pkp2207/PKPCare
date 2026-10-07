@@ -65,6 +65,10 @@ export const sendNotification = async (
   deps: NotifierDeps = {}
 ): Promise<NotifyResult> => {
   const env = deps.env ?? process.env;
+  // Kill switch for test/staging runs so fake recipients never get real messages.
+  if (env.NOTIFICATIONS_DISABLED === "true") {
+    return { ok: false, delivered: [], attempts: [] };
+  }
   const providers = { ...defaultProviders(), ...deps.providers };
   const channels = selectChannels(request.preferredChannels, env);
   const mode = channelMode(env);

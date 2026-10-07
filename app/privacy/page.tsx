@@ -17,7 +17,7 @@ const PrivacyPolicy = () => (
   <div className="mx-auto min-h-screen w-full max-w-3xl px-[5%] py-8 sm:px-6">
     <a
       href="#main"
-      className="sr-only rounded-md bg-green-500 px-4 py-2 text-dark-200 focus:not-sr-only focus:absolute focus:left-4 focus:top-4"
+      className="sr-only rounded-md bg-green-500 text-dark-200 focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:px-4 focus:py-2"
     >
       Skip to main content
     </a>

@@ -129,7 +129,7 @@ export function StaffManager({
         </button>
       </section>
 
-      <div className={ui.tableWrap}>
+      <div className={ui.tableWrap} role="region" aria-label="Staff accounts" tabIndex={0}>
         <table className="w-full min-w-[720px] text-sm">
           <caption className="sr-only">Staff accounts</caption>
           <thead className="bg-dark-200">

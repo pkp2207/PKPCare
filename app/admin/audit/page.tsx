@@ -85,7 +85,7 @@ export default async function AuditPage({ searchParams }: SearchParamProps) {
         </div>
       </form>
 
-      <div className={ui.tableWrap}>
+      <div className={ui.tableWrap} role="region" aria-label="Audit log" tabIndex={0}>
         <table className="w-full min-w-[900px] text-sm">
           <caption className="sr-only">Audit log entries, newest first</caption>
           <thead className="bg-dark-200">
